@@ -246,23 +246,14 @@ static void D_Display(void)
 	if (nodrawers)
 		return; // for comparative timing/profiling
 
-	// Lactozilla: Switching renderers works by checking
-	// if the game has to do it right when the frame
-	// needs to render. If so, five things will happen:
-	// 1. Interface functions will be called so
-	//    that switching to OpenGL creates a
-	//    GL context, and switching to Software
-	//    allocates screen buffers.
-	// 2. Software will set drawer functions,
-	//    and OpenGL will load textures and
-	//    create plane polygons, if necessary.
-	// 3. Functions related to switching video
-	//    modes (resolution) are called.
-	// 4. The frame is ready to be drawn!
-
-	// Check for change of renderer or screen size (video mode)
-	if ((setrenderneeded || setmodeneeded) && !wipe)
-		SCR_SetMode(); // change video mode
+	// check for change of screen size
+	if (!wipe)
+	{
+		if (setresneeded[2])
+			SCR_SetResolution();
+		else if (setmodeneeded)
+			SCR_SetMode();
+	}
 
 	// Recalc the screen
 	if (vid.recalc)
@@ -650,7 +641,7 @@ void D_SRB2Loop(void)
 	con_startup = false;
 
 	// make sure to do a d_display to init mode _before_ load a level
-	SCR_SetMode(); // change video mode
+	SCR_SetResolution(); // change video resolution
 	SCR_Recalc();
 
 	chosenrendermode = render_none;

@@ -60,6 +60,11 @@ void (*spanfuncs_npo2[SPANDRAWFUNC_MAX])(void);
 viddef_t vid;
 INT32 setmodeneeded; //video mode change needed if > 0 (the mode number to set + 1)
 UINT8 setrenderneeded = 0;
+INT32 setresneeded[3]; // if setresneeded[2] is > 0, set resolution
+
+static void SCR_ChangeFullscreen (void);
+static void SCR_ChangeWidthCVAR (void);
+static void SCR_ChangeHeightCVAR (void);
 
 static CV_PossibleValue_t scr_depth_cons_t[] = {{8, "8 bits"}, {16, "16 bits"}, {24, "24 bits"}, {32, "32 bits"}, {0, NULL}};
 
@@ -157,32 +162,26 @@ void SCR_SetDrawFuncs(void)
 		spanfuncs_npo2[SPANDRAWFUNC_FOG] = NULL; // Not needed
 
 #ifdef RUSEASM
-		if (R_ASM)
-		{
-			if (R_MMX)
-			{
-				colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_MMX;
-				//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
-				//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
-				colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_MMX;
-				spanfuncs[BASEDRAWFUNC] = R_DrawSpan_8_MMX;
-			}
-			else
-			{
-				colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_ASM;
-				//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
-				//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
-				colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_ASM;
-			}
-		}
-#endif
-	}
-/*	else if (vid.bpp > 1)
+	if (R_ASM)
 	{
-		I_OutputMsg("using highcolor mode\n");
-		spanfunc = basespanfunc = R_DrawSpan_16;
-		transcolfunc = R_DrawTranslatedColumn_16;
-		transtransfunc = R_DrawTranslucentColumn_16; // No 16bit operation for this function
+		if (R_MMX)
+		{
+			colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_MMX;
+			//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
+			//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
+			colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_MMX;
+			spanfuncs[BASEDRAWFUNC] = R_DrawSpan_8_MMX;
+		}
+		else
+		{
+			colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_ASM;
+			//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
+			//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
+			colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_ASM;
+		}
+	}
+#endif
+}
 
 		colfunc = basecolfunc = R_DrawColumn_16;
 		shadecolfunc = NULL; // detect error if used somewhere..
@@ -231,6 +230,23 @@ void SCR_SetMode(void)
 	// set the apprpriate drawer for the sky (tall or INT16)
 	setmodeneeded = 0;
 	setrenderneeded = 0;
+}
+
+void SCR_SetResolution(void)
+{
+	if (dedicated)
+		return;
+
+	if (!setresneeded[2] || WipeInAction)
+		return; // should never happen and don't change it during a wipe, BAD!
+
+	VID_SetResolution(setresneeded[0], setresneeded[1]);
+
+	V_SetPalette(0);
+
+	// set the apprpriate drawers
+	SetupDrawRoutines();
+	setresneeded[2] = 0;
 }
 
 // do some initial settings for the game loading screen
@@ -361,15 +377,17 @@ void SCR_CheckDefaultMode(void)
 	if (scr_forcex && scr_forcey)
 	{
 		CONS_Printf(M_GetText("Using resolution: %d x %d\n"), scr_forcex, scr_forcey);
-		// returns -1 if not found, thus will be 0 (no mode change) if not found
-		setmodeneeded = VID_GetModeForSize(scr_forcex, scr_forcey) + 1;
+		setresneeded[0] = scr_forcex;
+		setresneeded[1] = scr_forcey;
+		setresneeded[2] = 2;
 	}
 	else
 	{
 		CONS_Printf(M_GetText("Default resolution: %d x %d (%d bits)\n"), cv_scr_width.value,
 			cv_scr_height.value, cv_scr_depth.value);
-		// see note above
-		setmodeneeded = VID_GetModeForSize(cv_scr_width.value, cv_scr_height.value) + 1;
+		setresneeded[0] = cv_scr_width.value;
+		setresneeded[1] = cv_scr_height.value;
+		setresneeded[2] = 2;
 	}
 
 	if (cv_renderer.value != (signed)rendermode)
@@ -405,7 +423,9 @@ void SCR_ChangeFullscreen(void)
 	if (graphics_started)
 	{
 		VID_PrepareModeList();
-		setmodeneeded = VID_GetModeForSize(vid.width, vid.height) + 1;
+		setresneeded[0] = cv_scr_width.value;
+		setresneeded[1] = cv_scr_height.value;
+		setresneeded[2] = 1;
 	}
 	return;
 #endif
@@ -436,6 +456,24 @@ void SCR_ChangeRenderer(void)
 
 	// Set the new render mode
 	setrenderneeded = cv_renderer.value;
+}
+
+// Called after changing the value of scr_width
+// Keeps the height the same
+void SCR_ChangeWidthCVAR(void)
+{
+	setresneeded[0] = cv_scr_width.value;
+	setresneeded[1] = vid.height;
+	setresneeded[2] = 1;
+}
+
+// Called after changing the value of scr_height
+// Keeps the width the same
+void SCR_ChangeHeightCVAR(void)
+{
+	setresneeded[0] = vid.width;
+	setresneeded[1] = cv_scr_height.value;
+	setresneeded[2] = 1;
 }
 
 boolean SCR_IsAspectCorrect(INT32 width, INT32 height)
