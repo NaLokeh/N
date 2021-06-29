@@ -187,8 +187,6 @@ static char returnWadPath[256];
 
 #include "../m_menu.h"
 
-#include "../r_main.h" // Frame interpolation/uncapped
-
 #ifdef MAC_ALERT
 #include "macosx/mac_alert.h"
 #endif
@@ -2168,20 +2166,6 @@ int I_PreciseToMicros(precise_t d)
 	return (int)(d / (timer_frequency / 1000000.0));
 }
 
-static precise_t prevticks;
-
-void I_SetInterpolationDiff(void)
-{
-	prevticks = I_GetPreciseTime();
-}
-
-fixed_t I_GetTimeFrac(void) {
-	double ticks = I_PreciseToMicros((I_GetPreciseTime() - prevticks)) * TICRATE;
-	fixed_t frac = ticks * FRACUNIT / 1000000;
-
-	return frac > FRACUNIT ? FRACUNIT : frac;
-}
-
 //
 //I_StartupTimer
 //
@@ -2189,8 +2173,6 @@ void I_StartupTimer(void)
 {
 	timer_frequency = SDL_GetPerformanceFrequency();
 	tic_epoch       = SDL_GetPerformanceCounter();
-
-	prevticks       = SDL_GetPerformanceCounter();
 
 	tic_frequency   = timer_frequency / (double)NEWTICRATE;
 }

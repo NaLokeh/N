@@ -1450,21 +1450,9 @@ static void R_ProjectSprite(mobj_t *thing)
 	INT32 rollangle = 0;
 #endif
 
-	// uncapped/interpolation
-	fixed_t interpx = thing->old_x + FixedMul(rendertimefrac, thing->x - thing->old_x);
-	fixed_t interpy = thing->old_y + FixedMul(rendertimefrac, thing->y - thing->old_y);
-	fixed_t interpz = thing->old_z + FixedMul(rendertimefrac, thing->z - thing->old_z);
-	angle_t interpangle = thing->angle;
-
-	fixed_t oldinterpz = oldthing->old_z + FixedMul(rendertimefrac, oldthing->z - oldthing->old_z);;
-
-	// use player drawangle if player
-	if (thing->player)
-		interpangle = thing->player->drawangle;
-
 	// transform the origin point
-	tr_x = interpx - viewx;
-	tr_y = interpy - viewy;
+	tr_x = thing->x - viewx;
+	tr_y = thing->y - viewy;
 
 	basetz = tz = FixedMul(tr_x, viewcos) + FixedMul(tr_y, viewsin); // near/far distance
 
@@ -1541,7 +1529,7 @@ static void R_ProjectSprite(mobj_t *thing)
 
 	if (sprframe->rotate != SRF_SINGLE || papersprite)
 	{
-		ang = R_PointToAngle (interpx, interpy) - interpangle;
+		ang = R_PointToAngle (thing->x, thing->y) - (thing->player ? thing->player->drawangle : thing->angle);
 		if (mirrored)
 			ang = InvAngle(ang);
 	}
@@ -1556,7 +1544,7 @@ static void R_ProjectSprite(mobj_t *thing)
 	else
 	{
 		// choose a different rotation based on player view
-		//ang = R_PointToAngle (interpx, interpy) - interpangle;
+		//ang = R_PointToAngle (thing->x, thing->y) - thing->angle;
 
 		if ((sprframe->rotate & SRF_RIGHT) && (ang < ANGLE_180)) // See from right
 			rot = 6; // F7 slot
@@ -1765,14 +1753,11 @@ static void R_ProjectSprite(mobj_t *thing)
 
 		thing = thing->tracer;
 
-		interpx = thing->old_x + FixedMul(thing->x - thing->old_x, rendertimefrac);
-		interpy = thing->old_y + FixedMul(thing->y - thing->old_y, rendertimefrac);
-
 		if (! R_ThingVisible(thing))
 			return;
 
-		tr_x = (interpx + sort_x) - viewx;
-		tr_y = (interpy + sort_y) - viewy;
+		tr_x = (thing->x + sort_x) - viewx;
+		tr_y = (thing->y + sort_y) - viewy;
 		tz = FixedMul(tr_x, viewcos) + FixedMul(tr_y, viewsin);
 		linkscale = FixedDiv(projectiony, tz);
 
@@ -1808,7 +1793,7 @@ static void R_ProjectSprite(mobj_t *thing)
 		if (x2 < portalclipstart || x1 >= portalclipend)
 			return;
 
-		if (P_PointOnLineSide(interpx, interpy, portalclipline) != 0)
+		if (P_PointOnLineSide(thing->x, thing->y, portalclipline) != 0)
 			return;
 	}
 
@@ -1876,7 +1861,7 @@ static void R_ProjectSprite(mobj_t *thing)
 		{
 			R_SkewShadowSprite(thing, thing->standingslope, groundz, patch->height, shadowscale, &spriteyscale, &sheartan);
 
-			gzt = (isflipped ? (interpz + thing->height) : interpz) + patch->height * spriteyscale / 2;
+			gzt = (isflipped ? (thing->z + thing->height) : thing->z) + patch->height * spriteyscale / 2;
 			gz = gzt - patch->height * spriteyscale;
 
 			cut |= SC_SHEAR;
@@ -1891,12 +1876,12 @@ static void R_ProjectSprite(mobj_t *thing)
 			// When vertical flipped, draw sprites from the top down, at least as far as offsets are concerned.
 			// sprite height - sprite topoffset is the proper inverse of the vertical offset, of course.
 			// remember gz and gzt should be seperated by sprite height, not thing height - thing height can be shorter than the sprite itself sometimes!
-			gz = oldinterpz + oldthing->height - FixedMul(spr_topoffset, FixedMul(spriteyscale, this_scale));
+			gz = oldthing->z + oldthing->height - FixedMul(spr_topoffset, FixedMul(spriteyscale, this_scale));
 			gzt = gz + FixedMul(spr_height, FixedMul(spriteyscale, this_scale));
 		}
 		else
 		{
-			gzt = oldinterpz + FixedMul(spr_topoffset, FixedMul(spriteyscale, this_scale));
+			gzt = oldthing->z + FixedMul(spr_topoffset, FixedMul(spriteyscale, this_scale));
 			gz = gzt - FixedMul(spr_height, FixedMul(spriteyscale, this_scale));
 		}
 	}
@@ -1915,7 +1900,7 @@ static void R_ProjectSprite(mobj_t *thing)
 
 		// R_GetPlaneLight won't work on sloped lights!
 		for (lightnum = 1; lightnum < thing->subsector->sector->numlights; lightnum++) {
-			fixed_t h = P_GetLightZAt(&thing->subsector->sector->lightlist[lightnum], interpx, interpy);
+			fixed_t h = P_GetLightZAt(&thing->subsector->sector->lightlist[lightnum], thing->x, thing->y);
 			if (h <= top) {
 				light = lightnum - 1;
 				break;
@@ -1959,8 +1944,8 @@ static void R_ProjectSprite(mobj_t *thing)
 	vis->sortscale = sortscale;
 	vis->sortsplat = sortsplat;
 	vis->dispoffset = dispoffset; // Monster Iestyn: 23/11/15
-	vis->gx = interpx;
-	vis->gy = interpy;
+	vis->gx = thing->x;
+	vis->gy = thing->y;
 	vis->gz = gz;
 	vis->gzt = gzt;
 	vis->thingheight = thing->height;
@@ -2095,14 +2080,9 @@ static void R_ProjectPrecipitationSprite(precipmobj_t *thing)
 	//SoM: 3/17/2000
 	fixed_t gz, gzt;
 
-	// uncapped/interpolation
-	fixed_t interpx = thing->old_x + FixedMul(rendertimefrac, thing->x - thing->old_x);
-	fixed_t interpy = thing->old_y + FixedMul(rendertimefrac, thing->y - thing->old_y);
-	fixed_t interpz = thing->old_z + FixedMul(rendertimefrac, thing->z - thing->old_z);
-
 	// transform the origin point
-	tr_x = interpx - viewx;
-	tr_y = interpy - viewy;
+	tr_x = thing->x - viewx;
+	tr_y = thing->y - viewy;
 
 	tz = FixedMul(tr_x, viewcos) + FixedMul(tr_y, viewsin); // near/far distance
 
@@ -2166,13 +2146,13 @@ static void R_ProjectPrecipitationSprite(precipmobj_t *thing)
 		if (x2 < portalclipstart || x1 >= portalclipend)
 			return;
 
-		if (P_PointOnLineSide(interpx, interpy, portalclipline) != 0)
+		if (P_PointOnLineSide(thing->x, thing->y, portalclipline) != 0)
 			return;
 	}
 
 
 	//SoM: 3/17/2000: Disregard sprites that are out of view..
-	gzt = interpz + spritecachedinfo[lump].topoffset;
+	gzt = thing->z + spritecachedinfo[lump].topoffset;
 	gz = gzt - spritecachedinfo[lump].height;
 
 	if (thing->subsector->sector->cullheight)
@@ -2185,8 +2165,8 @@ static void R_ProjectPrecipitationSprite(precipmobj_t *thing)
 	vis = R_NewVisSprite();
 	vis->scale = vis->sortscale = yscale; //<<detailshift;
 	vis->dispoffset = 0; // Monster Iestyn: 23/11/15
-	vis->gx = interpx;
-	vis->gy = interpy;
+	vis->gx = thing->x;
+	vis->gy = thing->y;
 	vis->gz = gz;
 	vis->gzt = gzt;
 	vis->thingheight = 4*FRACUNIT;

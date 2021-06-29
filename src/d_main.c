@@ -64,7 +64,6 @@
 #include "deh_tables.h" // Dehacked list test
 #include "m_cond.h" // condition initialization
 #include "fastcmp.h"
-#include "r_fps.h" // Frame interpolation/uncapped
 #include "keys.h"
 #include "filesrch.h" // refreshdirmenu, mainwadstally
 #include "g_input.h" // tutorial mode control scheming
@@ -693,7 +692,7 @@ void D_SRB2Loop(void)
 				debugload--;
 #endif
 
-		if (!realtics && !singletics && !cv_frameinterpolation.value)
+		if (!realtics && !singletics)
 		{
 			I_Sleep();
 			continue;
@@ -711,39 +710,13 @@ void D_SRB2Loop(void)
 		// process tics (but maybe not if realtic == 0)
 		TryRunTics(realtics);
 
-		if (!P_AutoPause() && !paused)
-		{
-			if (cv_frameinterpolation.value)
-			{
-				fixed_t entertimefrac = I_GetTimeFrac();
-				// renderdeltatics is a bit awkard to evaluate, since the system time interface is whole tic-based
-				renderdeltatics = realtics * FRACUNIT;
-				if (entertimefrac > rendertimefrac)
-					renderdeltatics += entertimefrac - rendertimefrac;
-				else
-					renderdeltatics -= rendertimefrac - entertimefrac;
-
-				rendertimefrac = entertimefrac;
-			}
-			else
-			{
-				rendertimefrac = FRACUNIT;
-				renderdeltatics = realtics * FRACUNIT;
-			}
-		}
-
-		if (cv_frameinterpolation.value)
-			D_Display();
-
 		if (lastdraw || singletics || gametic > rendergametic)
 		{
 			rendergametic = gametic;
 			rendertimeout = entertic+TICRATE/17;
 
 			// Update display, next frame, with current state.
-			// (Only display if not already done for frame interp)
-			if (!cv_frameinterpolation.value)
-				D_Display();
+			D_Display();
 
 			if (moviemode)
 				M_SaveFrame();
@@ -760,10 +733,7 @@ void D_SRB2Loop(void)
 				if (camera.chase)
 					P_MoveChaseCamera(&players[displayplayer], &camera, false);
 			}
-
-			// (Only display if not already done for frame interp)
-			if (!cv_frameinterpolation.value)
-				D_Display();
+			D_Display();
 
 			if (moviemode)
 				M_SaveFrame();
@@ -1501,8 +1471,6 @@ void D_SRB2Main(void)
 		// Do this here so if you run SRB2 with eg +timelimit 5, the time limit counts
 		// as having been modified for the first game.
 		M_PushSpecialParameters(); // push all "+" parameter at the command buffer
-
-		COM_BufExecute(); // ensure the command buffer gets executed before the map starts (+skin)
 
 		if (M_CheckParm("-gametype") && M_IsNextParm())
 		{

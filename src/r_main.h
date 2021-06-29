@@ -34,11 +34,6 @@ extern fixed_t fovtan;
 
 extern size_t validcount, linecount, loopcount, framecount;
 
-// The fraction of a tic being drawn (for interpolation between two tics)
-extern fixed_t rendertimefrac;
-// Evaluated delta tics for this frame (how many tics since the last frame)
-extern fixed_t renderdeltatics;;
-
 //
 // Lighting LUT.
 // Used for z-depth cuing per column/row,
@@ -116,9 +111,6 @@ extern consvar_t cv_drawdist, cv_drawdist_nights, cv_drawdist_precip;
 extern consvar_t cv_fov;
 extern consvar_t cv_skybox;
 extern consvar_t cv_tailspickup;
-
-// Frame interpolation (uncapped framerate)
-extern consvar_t cv_frameinterpolation;
 
 // Called by startup code.
 void R_Init(void);

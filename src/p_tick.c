@@ -23,7 +23,6 @@
 #include "lua_hook.h"
 #include "m_perfstats.h"
 #include "i_system.h" // I_GetPreciseTime
-#include "r_fps.h"
 
 // Object place
 #include "m_cheat.h"

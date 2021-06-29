@@ -45,7 +45,6 @@
 #include "../d_main.h"
 
 #include "../m_argv.h"
-#include "../m_fixed.h"
 
 #include "../w_wad.h"
 #include "../z_zone.h"
@@ -260,11 +259,6 @@ tic_t I_GetTime(void)
 
 	hacktics = newtics; // a local counter for keyboard repeat key
 	return newtics;
-}
-
-fixed_t I_GetTimeFrac(void)
-{
-	return 0;
 }
 
 void I_Sleep(void)

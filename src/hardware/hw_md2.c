@@ -1288,11 +1288,6 @@ boolean HWR_DrawModel(gl_vissprite_t *spr)
 	FTransform p;
 	FSurfaceInfo Surf;
 
-	// uncapped/interpolation
-	fixed_t interpx = spr->mobj->old_x + FixedMul(rendertimefrac, spr->mobj->x - spr->mobj->old_x);
-	fixed_t interpy = spr->mobj->old_y + FixedMul(rendertimefrac, spr->mobj->y - spr->mobj->old_y);
-	fixed_t interpz = spr->mobj->old_z + FixedMul(rendertimefrac, spr->mobj->z - spr->mobj->old_z);
-
 	if (!cv_glmodels.value)
 		return false;
 
@@ -1317,7 +1312,7 @@ boolean HWR_DrawModel(gl_vissprite_t *spr)
 		{
 			INT32 light;
 
-			light = R_GetPlaneLight(sector, interpz + spr->mobj->height, false); // Always use the light at the top instead of whatever I was doing before
+			light = R_GetPlaneLight(sector, spr->mobj->z + spr->mobj->height, false); // Always use the light at the top instead of whatever I was doing before
 
 			if (!R_ThingIsFullBright(spr->mobj))
 				lightlevel = *sector->lightlist[light].lightlevel > 255 ? 255 : *sector->lightlist[light].lightlevel;
@@ -1566,13 +1561,13 @@ boolean HWR_DrawModel(gl_vissprite_t *spr)
 #endif
 
 		//Hurdler: it seems there is still a small problem with mobj angle
-		p.x = FIXED_TO_FLOAT(interpx);
-		p.y = FIXED_TO_FLOAT(interpy)+md2->offset;
+		p.x = FIXED_TO_FLOAT(spr->mobj->x);
+		p.y = FIXED_TO_FLOAT(spr->mobj->y)+md2->offset;
 
 		if (flip)
-			p.z = FIXED_TO_FLOAT(interpz + spr->mobj->height);
+			p.z = FIXED_TO_FLOAT(spr->mobj->z + spr->mobj->height);
 		else
-			p.z = FIXED_TO_FLOAT(interpz);
+			p.z = FIXED_TO_FLOAT(spr->mobj->z);
 
 		if (spr->mobj->skin && spr->mobj->sprite == SPR_PLAY)
 			sprdef = &((skin_t *)spr->mobj->skin)->sprites[spr->mobj->sprite2];
@@ -1592,7 +1587,7 @@ boolean HWR_DrawModel(gl_vissprite_t *spr)
 		}
 		else
 		{
-			const fixed_t anglef = AngleFixed((R_PointToAngle(interpx, interpy))-ANGLE_180);
+			const fixed_t anglef = AngleFixed((R_PointToAngle(spr->mobj->x, spr->mobj->y))-ANGLE_180);
 			p.angley = FIXED_TO_FLOAT(anglef);
 		}
 
@@ -1614,7 +1609,7 @@ boolean HWR_DrawModel(gl_vissprite_t *spr)
 				p.rotaxis = (UINT8)(sprinfo->pivot[(spr->mobj->frame & FF_FRAMEMASK)].rotaxis);
 
 			// for NiGHTS specifically but should work everywhere else
-			ang = R_PointToAngle (interpx, interpy) - (spr->mobj->player ? spr->mobj->player->drawangle : spr->mobj->angle);
+			ang = R_PointToAngle (spr->mobj->x, spr->mobj->y) - (spr->mobj->player ? spr->mobj->player->drawangle : spr->mobj->angle);
 			if ((sprframe->rotate & SRF_RIGHT) && (ang < ANGLE_180)) // See from right
 				p.rollflip = 1;
 			else if ((sprframe->rotate & SRF_LEFT) && (ang >= ANGLE_180)) // See from left
