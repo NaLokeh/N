@@ -572,18 +572,17 @@ void DRPC_UpdatePresence(void)
 	if ((gamestate == GS_LEVEL || gamestate == GS_INTERMISSION) // Map info
 		&& !(demoplayback && titledemo))
 	{
-		if ((gamemap >= 1 && gamemap <= 60) // supported race maps
-			|| (gamemap >= 136 && gamemap <= 164)) // supported battle maps
+		if (gamemap >= 1 && gamemap <= 70) // supported vanilla maps
 		{
 			snprintf(mapimg, 8, "%s", G_BuildMapName(gamemap));
 			strlwr(mapimg);
 			discordPresence.largeImageKey = mapimg; // Map image
 		}
-		else if (mapheaderinfo[gamemap-1]->menuflags & LF2_HIDEINMENU)
+		/*else if (mapheaderinfo[gamemap-1]->menuflags & LF2_HIDEINMENU)
 		{
 			// Hell map, use the method that got you here :P
 			discordPresence.largeImageKey = "miscdice";
-		}
+		}*/
 		else
 		{
 			// This is probably a custom map!
@@ -631,8 +630,9 @@ void DRPC_UpdatePresence(void)
 			"sonic",
 			"tails",
 			"knuckles",
-			"eggman",
-			"metalsonic"
+			"metalsonic",
+			"fang",
+			"amy"
 		};
 
 		boolean customChar = true;
