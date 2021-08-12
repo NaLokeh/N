@@ -32,7 +32,7 @@
 #include "doomdef.h"
 
 // Feel free to provide your own, if you care enough to create another Discord app for this :P
-#define DISCORD_APPID "767456689724588072"
+#define DISCORD_APPID "875107153734680626"
 
 // length of IP strings
 #define IP_SIZE 21
