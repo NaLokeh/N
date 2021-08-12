@@ -457,7 +457,8 @@ void DRPC_UpdatePresence(void)
 			}
 		}
 
-		switch (ms_RoomId)
+		// unfortunally this only works when you are the server 
+		/*switch (ms_RoomId)
 		{
 			case -1: discordPresence.state = "Private"; break; // Private server
 			case 33: discordPresence.state = "Standard"; break;
@@ -465,7 +466,9 @@ void DRPC_UpdatePresence(void)
 			case 38: discordPresence.state = "Custom Gametypes"; break;
 			case 31: discordPresence.state = "OLDC"; break;
 			default: discordPresence.state = "Unknown Room"; break; // HOW
-		}
+		}*/
+
+		discordPresence.state = "Multi-Player";
 
 		discordPresence.partyId = server_context; // Thanks, whoever gave us Mumble support, for implementing the EXACT thing Discord wanted for this field!
 		discordPresence.partySize = D_NumPlayers(); // Players in server
@@ -480,7 +483,30 @@ void DRPC_UpdatePresence(void)
 
 		// Offline info
 		if (Playing())
-			discordPresence.state = "Offline";
+		{
+			UINT8 emeraldCount = 0;
+			discordPresence.state = "Single-Player";
+			
+			if (emeralds == 0)
+				discordPresence.details = "No Chaos Emeralds";
+			else
+			{
+				for (INT32 i = 0; i < 7; i++) // thanks Monster Iestyn for this math
+					if (emeralds & (1<<i))
+						emeraldCount += 1;
+
+				if (emeraldCount > 1 && emeraldCount < 7 && emeraldCount != 3)
+					discordPresence.details = va("Has %d Chaos Emeralds", emeraldCount);
+				else if (emeraldCount == 1)
+					discordPresence.details = "Has 1 Chaos Emerald";
+				else if (emeraldCount == 3)
+					discordPresence.details = "Where's that DAMN fourth chaos emerald (Has 3 Emeralds)";
+				else
+					discordPresence.details = "Has All The 7 Chaos Emeralds";
+			}
+
+
+		}
 		else if (demoplayback && !titledemo)
 			discordPresence.state = "Watching Replay";
 		else
@@ -492,7 +518,7 @@ void DRPC_UpdatePresence(void)
 	{
 		if (modeattacking)
 			discordPresence.details = "Time Attack";
-		else
+		else if (netgame)
 		{
 			snprintf(detailstr, 48, "%s",
 				gametype_cons_t[gametype].strvalue
@@ -576,10 +602,14 @@ void DRPC_UpdatePresence(void)
 			INT32 i;
 			for (i = 0; i < MAXPLAYERS; i++)
 			{
-				if (players[i].bot && strcmp(skins[players[consoleplayer].skin].name, supportedSkins[0]))
+				if (players[i].bot && !strcmp(skins[players[consoleplayer].skin].name, "sonic"))
 				{
 						snprintf(charimg, 21, "charsonictails");
+						snprintf(charname, 28, "Characters: Sonic & Tails");
+						discordPresence.smallImageKey = charimg;
 						sonicAndTails = true;
+						customChar = false;
+						break;
 				}
 			}
 		}
@@ -607,7 +637,9 @@ void DRPC_UpdatePresence(void)
 			discordPresence.smallImageKey = "charcustom";
 		}
 
-		snprintf(charname, 28, "Character: %s", skins[players[consoleplayer].skin].realname);
+		if (!sonicAndTails)
+			snprintf(charname, 28, "Character: %s", skins[players[consoleplayer].skin].realname);
+
 		discordPresence.smallImageText = charname; // Character name
 	}
 
