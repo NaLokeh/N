@@ -2,7 +2,7 @@
 //-----------------------------------------------------------------------------
 //
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 2014-2020 by Sonic Team Junior.
+// Copyright (C) 2014-2021 by Sonic Team Junior.
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License
@@ -189,7 +189,7 @@ boolean OglSdlSurface(INT32 w, INT32 h)
 
 	SetupGLFunc4();
 
-	granisotropicmode_cons_t[1].value = maximumAnisotropy;
+	glanisotropicmode_cons_t[1].value = maximumAnisotropy;
 
 	SDL_GL_SetSwapInterval(cv_vidwait.value ? 1 : 0);
 

@@ -2,7 +2,7 @@
 //-----------------------------------------------------------------------------
 // Copyright (C) 1993-1996 by id Software, Inc.
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2020 by Sonic Team Junior.
+// Copyright (C) 1999-2021 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -394,8 +394,10 @@ INT32 EV_DoCeiling(line_t *line, ceiling_e type)
 	INT32 secnum = -1;
 	sector_t *sec;
 	ceiling_t *ceiling;
+	mtag_t tag = Tag_FGet(&line->tags);
+	TAG_ITER_DECLARECOUNTER(0);
 
-	while ((secnum = P_FindSectorFromTag(line->tag,secnum)) >= 0)
+	TAG_ITER_SECTORS(0, tag, secnum)
 	{
 		sec = &sectors[secnum];
 
@@ -593,7 +595,7 @@ INT32 EV_DoCeiling(line_t *line, ceiling_e type)
 
 		}
 
-		ceiling->tag = sec->tag;
+		ceiling->tag = tag;
 		ceiling->type = type;
 		firstone = 0;
 	}
@@ -614,8 +616,10 @@ INT32 EV_DoCrush(line_t *line, ceiling_e type)
 	INT32 secnum = -1;
 	sector_t *sec;
 	ceiling_t *ceiling;
+	mtag_t tag = Tag_FGet(&line->tags);
+	TAG_ITER_DECLARECOUNTER(0);
 
-	while ((secnum = P_FindSectorFromTag(line->tag,secnum)) >= 0)
+	TAG_ITER_SECTORS(0, tag, secnum)
 	{
 		sec = &sectors[secnum];
 
@@ -670,7 +674,7 @@ INT32 EV_DoCrush(line_t *line, ceiling_e type)
 				break;
 		}
 
-		ceiling->tag = sec->tag;
+		ceiling->tag = tag;
 		ceiling->type = type;
 	}
 	return rtn;

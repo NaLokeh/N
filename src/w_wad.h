@@ -2,7 +2,7 @@
 //-----------------------------------------------------------------------------
 // Copyright (C) 1993-1996 by id Software, Inc.
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2020 by Sonic Team Junior.
+// Copyright (C) 1999-2021 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -102,10 +102,6 @@ virtlump_t* vres_Find(const virtres_t*, const char*);
 
 #define lumpcache_t void *
 
-#ifdef HWRENDER
-#include "m_aatree.h"
-#endif
-
 // Resource type of the WAD. Yeah, I know this sounds dumb, but I'll leave it like this until I clean up the code further.
 typedef enum restype
 {
@@ -123,9 +119,6 @@ typedef struct wadfile_s
 	lumpinfo_t *lumpinfo;
 	lumpcache_t *lumpcache;
 	lumpcache_t *patchcache;
-#ifdef HWRENDER
-	aatree_t *hwrcache; // patches are cached in renderer's native format
-#endif
 	UINT16 numlumps; // this wad's number of resources
 	FILE *handle;
 	UINT32 filesize; // for network
@@ -213,6 +206,6 @@ void W_UnlockCachedPatch(void *patch);
 
 void W_VerifyFileMD5(UINT16 wadfilenum, const char *matchmd5);
 
-int W_VerifyNMUSlumps(const char *filename);
+int W_VerifyNMUSlumps(const char *filename, boolean exit_on_error);
 
 #endif // __W_WAD__

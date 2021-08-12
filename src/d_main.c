@@ -2,7 +2,7 @@
 //-----------------------------------------------------------------------------
 // Copyright (C) 1993-1996 by id Software, Inc.
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2020 by Sonic Team Junior.
+// Copyright (C) 1999-2021 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -61,7 +61,7 @@
 #include "p_local.h" // chasecam
 #include "mserv.h" // ms_RoomId
 #include "m_misc.h" // screenshot functionality
-#include "dehacked.h" // Dehacked list test
+#include "deh_tables.h" // Dehacked list test
 #include "m_cond.h" // condition initialization
 #include "fastcmp.h"
 #include "keys.h"
@@ -110,8 +110,6 @@ boolean devparm = false; // started game with -devparm
 
 boolean singletics = false; // timedemo
 boolean lastdraw = false;
-
-static void D_CheckRendererState(void);
 
 postimg_t postimgtype = postimg_none;
 INT32 postimgparam;
@@ -241,7 +239,6 @@ INT16 wipetypepost = -1;
 
 static void D_Display(void)
 {
-	INT32 setrenderstillneeded = 0;
 	boolean forcerefresh = false;
 	static boolean wipe = false;
 	INT32 wipedefindex = 0;
@@ -264,47 +261,27 @@ static void D_Display(void)
 	//    create plane polygons, if necessary.
 	// 3. Functions related to switching video
 	//    modes (resolution) are called.
-	// 4. Patch data is freed from memory,
-	//    and recached if necessary.
-	// 5. The frame is ready to be drawn!
+	// 4. The frame is ready to be drawn!
 
-	// stop movie if needs to change renderer
-	if (setrenderneeded && (moviemode == MM_APNG))
-		M_StopMovie();
-
-	// check for change of renderer or screen size (video mode)
+	// Check for change of renderer or screen size (video mode)
 	if ((setrenderneeded || setmodeneeded) && !wipe)
-	{
-		if (setrenderneeded)
-		{
-			CONS_Debug(DBG_RENDER, "setrenderneeded set (%d)\n", setrenderneeded);
-			setrenderstillneeded = setrenderneeded;
-		}
 		SCR_SetMode(); // change video mode
-	}
 
-	if (vid.recalc || setrenderstillneeded)
-	{
+	// Recalc the screen
+	if (vid.recalc)
 		SCR_Recalc(); // NOTE! setsizeneeded is set by SCR_Recalc()
-#ifdef HWRENDER
-		// Shoot! The screen texture was flushed!
-		if ((rendermode == render_opengl) && (gamestate == GS_INTERMISSION))
-			usebuffer = false;
-#endif
-	}
 
+	// View morph
 	if (rendermode == render_soft && !splitscreen)
 		R_CheckViewMorph();
 
-	// change the view size if needed
-	if (setsizeneeded || setrenderstillneeded)
+	// Change the view size if needed
+	// Set by changing video mode or renderer
+	if (setsizeneeded)
 	{
 		R_ExecuteSetViewSize();
 		forcerefresh = true; // force background redraw
 	}
-
-	// Lactozilla: Renderer switching
-	D_CheckRendererState();
 
 	// draw buffered stuff to screen
 	// Used only by linux GGI version
@@ -440,7 +417,7 @@ static void D_Display(void)
 
 			if (!automapactive && !dedicated && cv_renderview.value)
 			{
-				ps_rendercalltime = I_GetTimeMicros();
+				ps_rendercalltime = I_GetPreciseTime();
 				if (players[displayplayer].mo || players[displayplayer].playerstate == PST_DEAD)
 				{
 					topleft = screens[0] + viewwindowy*vid.width + viewwindowx;
@@ -487,7 +464,7 @@ static void D_Display(void)
 					if (postimgtype2)
 						V_DoPostProcessor(1, postimgtype2, postimgparam2);
 				}
-				ps_rendercalltime = I_GetTimeMicros() - ps_rendercalltime;
+				ps_rendercalltime = I_GetPreciseTime() - ps_rendercalltime;
 			}
 
 			if (lastdraw)
@@ -501,7 +478,7 @@ static void D_Display(void)
 				lastdraw = false;
 			}
 
-			ps_uitime = I_GetTimeMicros();
+			ps_uitime = I_GetPreciseTime();
 
 			if (gamestate == GS_LEVEL)
 			{
@@ -514,7 +491,7 @@ static void D_Display(void)
 		}
 		else
 		{
-			ps_uitime = I_GetTimeMicros();
+			ps_uitime = I_GetPreciseTime();
 		}
 	}
 
@@ -534,7 +511,7 @@ static void D_Display(void)
 		else
 			py = viewwindowy + 4;
 		patch = W_CachePatchName("M_PAUSE", PU_PATCH);
-		V_DrawScaledPatch(viewwindowx + (BASEVIDWIDTH - SHORT(patch->width))/2, py, 0, patch);
+		V_DrawScaledPatch(viewwindowx + (BASEVIDWIDTH - patch->width)/2, py, 0, patch);
 #else
 		INT32 y = ((automapactive) ? (32) : (BASEVIDHEIGHT/2));
 		M_DrawTextBox((BASEVIDWIDTH/2) - (60), y - (16), 13, 2);
@@ -556,7 +533,7 @@ static void D_Display(void)
 
 	CON_Drawer();
 
-	ps_uitime = I_GetTimeMicros() - ps_uitime;
+	ps_uitime = I_GetPreciseTime() - ps_uitime;
 
 	//
 	// wipe update
@@ -642,30 +619,10 @@ static void D_Display(void)
 			M_DrawPerfStats();
 		}
 
-		ps_swaptime = I_GetTimeMicros();
+		ps_swaptime = I_GetPreciseTime();
 		I_FinishUpdate(); // page flip or blit buffer
-		ps_swaptime = I_GetTimeMicros() - ps_swaptime;
+		ps_swaptime = I_GetPreciseTime() - ps_swaptime;
 	}
-
-	needpatchflush = false;
-	needpatchrecache = false;
-}
-
-// Check the renderer's state
-// after a possible renderer switch.
-void D_CheckRendererState(void)
-{
-	// flush all patches from memory
-	if (needpatchflush)
-	{
-		Z_FlushCachedPatches();
-		needpatchflush = false;
-	}
-
-	// some patches have been freed,
-	// so cache them again
-	if (needpatchrecache)
-		R_ReloadHUDGraphics();
 }
 
 // =========================================================================
@@ -692,11 +649,14 @@ void D_SRB2Loop(void)
 	oldentertics = I_GetTime();
 
 	// end of loading screen: CONS_Printf() will no more call FinishUpdate()
+	con_refresh = false;
 	con_startup = false;
 
 	// make sure to do a d_display to init mode _before_ load a level
 	SCR_SetMode(); // change video mode
 	SCR_Recalc();
+
+	chosenrendermode = render_none;
 
 	// Check and print which version is executed.
 	// Use this as the border between setup and the main game loop being entered.
@@ -1049,7 +1009,7 @@ static void IdentifyVersion(void)
 #define MUSICTEST(str) \
 		{\
 			const char *musicpath = va(pandf,srb2waddir,str);\
-			int ms = W_VerifyNMUSlumps(musicpath); \
+			int ms = W_VerifyNMUSlumps(musicpath, false); \
 			if (ms == 1) \
 				D_AddFile(startupwadfiles, musicpath); \
 			else if (ms == 0) \
@@ -1096,7 +1056,7 @@ void D_SRB2Main(void)
 	// Print GPL notice for our console users (Linux)
 	CONS_Printf(
 	"\n\nSonic Robo Blast 2\n"
-	"Copyright (C) 1998-2020 by Sonic Team Junior\n\n"
+	"Copyright (C) 1998-2021 by Sonic Team Junior\n\n"
 	"This program comes with ABSOLUTELY NO WARRANTY.\n\n"
 	"This is free software, and you are welcome to redistribute it\n"
 	"and/or modify it under the terms of the GNU General Public License\n"
@@ -1123,7 +1083,7 @@ void D_SRB2Main(void)
 	G_LoadGameSettings();
 
 	// Test Dehacked lists
-	DEH_Check();
+	DEH_TableCheck();
 
 	// Netgame URL special case: change working dir to EXE folder.
 	ChangeDirForUrlHandler();
@@ -1238,11 +1198,7 @@ void D_SRB2Main(void)
 				const char *s = M_GetNextParm();
 
 				if (s) // Check for NULL?
-				{
-					if (!W_VerifyNMUSlumps(s))
-						G_SetGameModified(true);
 					D_AddFile(startuppwads, s);
-				}
 			}
 		}
 	}
@@ -1348,24 +1304,6 @@ void D_SRB2Main(void)
 
 	// set user default mode or mode set at cmdline
 	SCR_CheckDefaultMode();
-
-	// Lactozilla: Does the render mode need to change?
-	if ((setrenderneeded != 0) && (setrenderneeded != rendermode))
-	{
-		CONS_Printf(M_GetText("Switching the renderer...\n"));
-		Z_PreparePatchFlush();
-
-		// set needpatchflush / needpatchrecache true for D_CheckRendererState
-		needpatchflush = true;
-		needpatchrecache = true;
-
-		// Set cv_renderer to the new render mode
-		VID_CheckRenderer();
-		SCR_ChangeRendererCVars(rendermode);
-
-		// check the renderer's state
-		D_CheckRendererState();
-	}
 
 	wipegamestate = gamestate;
 
@@ -1609,7 +1547,7 @@ void D_SRB2Main(void)
 	{
 		levelstarttic = gametic;
 		G_SetGamestate(GS_LEVEL);
-		if (!P_LoadLevel(false))
+		if (!P_LoadLevel(false, false))
 			I_Quit(); // fail so reset game stuff
 	}
 
