@@ -4711,9 +4711,12 @@ void Got_DiscordInfo(UINT8 **p, INT32 playernum)
 
 	// Don't do anything with the information if we don't have Discord RP support
 #ifdef HAVE_DISCORDRPC
-	discordInfo.maxPlayers = READUINT8(*p);
+	/*discordInfo.maxPlayers = READUINT8(*p);
 	discordInfo.joinsAllowed = (boolean)READUINT8(*p);
-	discordInfo.everyoneCanInvite = (boolean)READUINT8(*p);
+	discordInfo.everyoneCanInvite = (boolean)READUINT8(*p);*/
+	discordInfo.maxPlayers = READUINT8(*p);
+	discordInfo.joinsAllowed = (boolean)true;
+	discordInfo.everyoneCanInvite = (boolean)true;
 
 	DRPC_UpdatePresence();
 #else
