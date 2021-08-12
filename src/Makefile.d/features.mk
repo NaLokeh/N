@@ -61,7 +61,7 @@ endif
 ifdef HAVE_DISCORDRPC
 libs+=-ldiscord-rpc
 opts+=-DHAVE_DISCORDRPC -DUSE_STUN
-sources+=discord.c
+sources+=discord.c stun.c
 endif
 
 # (Valgrind is a memory debugger.)

@@ -3960,7 +3960,7 @@ static void HandlePacketFromAwayNode(SINT8 node)
 			}
 
 #ifdef HAVE_DISCORDRPC
-			discordInfo.maxPlayers = netbuffer->u.servercfg.maxplayer;
+			discordInfo.maxPlayers = netbuffer->u.serverinfo.maxplayer;
 			discordInfo.joinsAllowed = netbuffer->u.servercfg.allownewplayer;
 			discordInfo.everyoneCanInvite = netbuffer->u.servercfg.discordinvites;
 #endif
