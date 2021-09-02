@@ -530,7 +530,9 @@ void DRPC_UpdatePresence(void)
 	if ((gamestate == GS_LEVEL || gamestate == GS_INTERMISSION) // Map info
 		&& !(demoplayback && titledemo))
 	{
-		if (gamemap >= 1 && gamemap <= 70) // supported vanilla maps
+		if ((gamemap >= 1 && gamemap <= 100) // Supported Co-op maps
+		|| (gamemap >= 280 && gamemap <= 288) // Supported CTF maps
+		|| (gamemap >= 532 && gamemap <= 543)) // Supported Match maps
 		{
 			snprintf(mapimg, 8, "%s", G_BuildMapName(gamemap));
 			strlwr(mapimg);
