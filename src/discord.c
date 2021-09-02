@@ -468,7 +468,7 @@ void DRPC_UpdatePresence(void)
 			default: discordPresence.state = "Unknown Room"; break; // HOW
 		}*/
 
-		discordPresence.state = "Multi-Player";
+		discordPresence.state = "Multiplayer";
 
 		discordPresence.partyId = server_context; // Thanks, whoever gave us Mumble support, for implementing the EXACT thing Discord wanted for this field!
 		discordPresence.partySize = D_NumPlayers(); // Players in server
