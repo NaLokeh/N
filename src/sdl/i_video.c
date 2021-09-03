@@ -1207,6 +1207,8 @@ void I_FinishUpdate(void)
 	if (cv_closedcaptioning.value)
 		SCR_ClosedCaptions();
 
+	SCR_CalcAproxFps();
+
 	if (cv_ticrate.value)
 		SCR_DisplayTicRate();
 

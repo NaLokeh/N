@@ -45,6 +45,7 @@
 #include "lua_hook.h"
 #include "md5.h"
 #include "m_perfstats.h"
+#include "r_fps.h"
 
 #ifndef NONET
 // cl loading screen
@@ -1569,6 +1570,8 @@ static void CL_LoadReceivedSavegame(boolean reloading)
 	{
 		CONS_Alert(CONS_ERROR, M_GetText("Can't load the level!\n"));
 	}
+
+	R_ResetFirstLerp();
 
 	// done
 	Z_Free(savebuffer);
@@ -4850,6 +4853,8 @@ void TryRunTics(tic_t realtics)
 
 				ps_tictime = I_GetPreciseTime();
 
+				I_SetInterpolationDiff();
+
 				G_Ticker((gametic % NEWTICRATERATIO) == 0);
 				ExtraDataTicker();
 				gametic++;
@@ -4954,6 +4959,9 @@ void NetUpdate(void)
 	INT32 i;
 	INT32 realtics;
 
+	if (!d_realtics && !singletics)
+		return;
+
 	nowtime = I_GetTime();
 	realtics = nowtime - gametime;
 
@@ -4966,6 +4974,8 @@ void NetUpdate(void)
 		else
 			realtics = 5;
 	}
+
+	R_StashThinkerLerp();
 
 	gametime = nowtime;
 
@@ -5071,6 +5081,8 @@ void NetUpdate(void)
 	}
 
 	FileSendTicker();
+
+	R_RestoreThinkerLerp();
 }
 
 /** Returns the number of players playing.

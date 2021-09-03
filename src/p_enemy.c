@@ -3635,6 +3635,7 @@ void A_1upThinker(mobj_t *actor)
 		++actor->tracer->tics;
 	}
 
+	actor->tracer->interpmode = MI_NOINTERP2;
 	actor->tracer->color = players[closestplayer].mo->color;
 	actor->tracer->skin = &skins[players[closestplayer].skin];
 }

@@ -85,6 +85,10 @@ typedef struct
 	INT32 resetcount;
 	INT32 maxlight;    ///< The brightest light level to use.
 	INT32 minlight;    ///< The darkest light level to use.
+
+	INT16 old_lightlevel;
+	INT16 new_lightlevel;
+	INT32 firstlerp;
 } fireflicker_t;
 
 typedef struct
@@ -93,6 +97,10 @@ typedef struct
 	sector_t *sector;
 	INT32 maxlight;
 	INT32 minlight;
+
+	INT16 old_lightlevel;
+	INT16 new_lightlevel;
+	INT32 firstlerp;
 } lightflash_t;
 
 /** Laser block thinker.
@@ -116,6 +124,10 @@ typedef struct
 	INT32 maxlight;    ///< The maximum light level to use.
 	INT32 darktime;    ///< How INT32 to use minlight.
 	INT32 brighttime;  ///< How INT32 to use maxlight.
+
+	INT16 old_lightlevel;
+	INT16 new_lightlevel;
+	INT32 firstlerp;
 } strobe_t;
 
 typedef struct
@@ -126,6 +138,10 @@ typedef struct
 	INT32 maxlight;
 	INT32 direction;
 	INT32 speed;
+
+	INT16 old_lightlevel;
+	INT16 new_lightlevel;
+	INT32 firstlerp;
 } glow_t;
 
 /** Thinker struct for fading lights.
@@ -141,6 +157,10 @@ typedef struct
 	fixed_t fixedpertic;	///< Fixed point for increment per tic.
 	// The reason for those two above to be fixed point is to deal with decimal values that would otherwise get trimmed away.
 	INT32 timer;			///< Internal timer.
+
+	INT16 old_lightlevel;
+	INT16 new_lightlevel;
+	INT32 firstlerp;
 } lightlevel_t;
 
 #define GLOWSPEED 8
@@ -222,6 +242,10 @@ typedef struct
 	INT32 olddirection;
 	fixed_t origspeed;    ///< The original, "real" speed.
 	INT32 sourceline;     ///< Index of the source linedef
+
+	fixed_t old_ceilingheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } ceiling_t;
 
 #define CEILSPEED (FRACUNIT)
@@ -282,6 +306,10 @@ typedef struct
 	fixed_t origspeed;
 	fixed_t delay;
 	fixed_t delaytimer;
+
+	fixed_t old_floorheight;
+	fixed_t new_floorheight;
+	INT32 firstlerp;
 } floormove_t;
 
 typedef struct
@@ -303,6 +331,12 @@ typedef struct
 	fixed_t floorwasheight; // Height the floor WAS at
 	fixed_t ceilingwasheight; // Height the ceiling WAS at
 	line_t *sourceline;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } elevator_t;
 
 typedef enum
@@ -326,6 +360,12 @@ typedef struct
 	fixed_t floorwasheight; // Height the floor WAS at
 	fixed_t ceilingwasheight; // Height the ceiling WAS at
 	UINT8 flags;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } crumble_t;
 
 typedef struct
@@ -343,6 +383,12 @@ typedef struct
 	fixed_t floorstartheight;
 	fixed_t ceilingstartheight;
 	fixed_t destheight;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } continuousfall_t;
 
 typedef struct
@@ -355,6 +401,12 @@ typedef struct
 	fixed_t floorwasheight;
 	fixed_t ceilingwasheight;
 	boolean low;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } bouncecheese_t;
 
 typedef struct
@@ -366,6 +418,12 @@ typedef struct
 	fixed_t floorstartheight;
 	fixed_t ceilingstartheight;
 	INT16 tag;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } mariothink_t;
 
 typedef struct
@@ -388,6 +446,12 @@ typedef struct
 	INT32 delay;
 	INT16 tag;
 	UINT16 sound;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } thwomp_t;
 
 typedef struct
@@ -396,6 +460,12 @@ typedef struct
 	line_t *sourceline;
 	sector_t *sector;
 	INT16 tag;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } floatthink_t;
 
 typedef struct
@@ -425,6 +495,12 @@ typedef struct
 	fixed_t extraspeed; //For dynamically sinking platform
 	UINT8 shaketimer; //For dynamically sinking platform
 	UINT8 flags;
+
+	fixed_t old_floorheight;
+	fixed_t old_ceilingheight;
+	fixed_t new_floorheight;
+	fixed_t new_ceilingheight;
+	INT32 firstlerp;
 } raise_t;
 
 #define ELEVATORSPEED (FRACUNIT*4)
@@ -500,6 +576,19 @@ typedef struct
 		sc_carry,        ///< Carry objects on floor.
 		sc_carry_ceiling,///< Carry objects on ceiling (for 3Dfloor conveyors).
 	} type;
+
+	// sc_side
+	fixed_t old_textureoffset;
+	fixed_t new_textureoffset;
+	fixed_t old_rowoffset;
+	fixed_t new_rowoffset;
+
+	// sc_floor/ceiling
+	fixed_t old_xoffs;
+	fixed_t new_xoffs;
+	fixed_t old_yoffs;
+	fixed_t new_yoffs;
+	INT32 firstlerp;
 } scroll_t;
 
 void T_Scroll(scroll_t *s);

@@ -2043,7 +2043,7 @@ void HU_Drawer(void)
 	if (chat_on)
 	{
 		// count down the scroll timer.
-		if (chat_scrolltime > 0)
+		if (chat_scrolltime > 0 && !tic_happened)
 			chat_scrolltime--;
 		if (!OLDCHAT)
 			HU_DrawChat();
@@ -2073,7 +2073,10 @@ void HU_Drawer(void)
 		for (i=0; (i<chat_nummsg_min); i++)
 		{
 			if (chat_timers[i] > 0)
-				chat_timers[i]--;
+			{
+				if (tic_happened)
+					chat_timers[i]--;
+			}
 			else
 				HU_removeChatText_Mini();
 		}

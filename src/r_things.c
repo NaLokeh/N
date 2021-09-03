@@ -1121,6 +1121,10 @@ static void R_SplitSprite(vissprite_t *sprite)
 // Get the first visible floor below the object for shadows
 // shadowslope is filled with the floor's slope, if provided
 //
+
+// moved to r_fps.c
+
+#if 0
 fixed_t R_GetShadowZ(mobj_t *thing, pslope_t **shadowslope)
 {
 	boolean isflipped = thing->eflags & MFE_VERTICALFLIP;
@@ -1235,6 +1239,7 @@ fixed_t R_GetShadowZ(mobj_t *thing, pslope_t **shadowslope)
 	return groundz;
 #undef CHECKZ
 }
+#endif
 
 static void R_SkewShadowSprite(
 			mobj_t *thing, pslope_t *groundslope,
@@ -1918,7 +1923,7 @@ static void R_ProjectSprite(mobj_t *thing)
 	}
 
 	heightsec = thing->subsector->sector->heightsec;
-	if (viewplayer->mo && viewplayer->mo->subsector)
+	if (viewplayer && viewplayer->mo && viewplayer->mo->subsector)
 		phs = viewplayer->mo->subsector->sector->heightsec;
 	else
 		phs = -1;

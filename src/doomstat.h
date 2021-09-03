@@ -676,6 +676,8 @@ extern gamestate_t wipegamestate;
 extern INT16 wipetypepre;
 extern INT16 wipetypepost;
 
+extern tic_t d_realtics;
+
 // debug flag to cancel adaptiveness
 extern boolean singletics;
 

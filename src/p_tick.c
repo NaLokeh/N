@@ -23,6 +23,7 @@
 #include "lua_hook.h"
 #include "m_perfstats.h"
 #include "i_system.h" // I_GetPreciseTime
+#include "r_fps.h"
 
 // Object place
 #include "m_cheat.h"
@@ -592,6 +593,9 @@ void P_Ticker(boolean run)
 {
 	INT32 i;
 
+	R_SetThinkerOldStates();
+	R_ResetThinkerLerp();
+
 	// Increment jointime and quittime even if paused
 	for (i = 0; i < MAXPLAYERS; i++)
 		if (playeringame[i])
@@ -764,6 +768,8 @@ void P_Ticker(boolean run)
 	}
 
 	P_MapEnd();
+
+	R_SetThinkerNewStates();
 
 //	Z_CheckMemCleanup();
 }
