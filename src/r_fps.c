@@ -279,8 +279,17 @@ void R_InterpolateView(player_t *player, boolean skybox, fixed_t frac)
 	if (frac > FRACUNIT)
 		frac = FRACUNIT;
 
-	viewx = oldview->x + R_LerpFixed(oldview->x, newview->x, frac);
-	viewy = oldview->y + R_LerpFixed(oldview->y, newview->y, frac);
+	if (R_IsViewpointThirdPerson(player, skybox))
+	{
+		viewx = oldview->x + R_LerpFixed(oldview->x, newview->x, frac);
+		viewy = oldview->y + R_LerpFixed(oldview->y, newview->y, frac);
+	}
+	else // already interpolated by the player mobj
+	{
+		viewx = newview->x;
+		viewy = newview->y;
+	}
+
 	viewz = oldview->z + R_LerpFixed(oldview->z, newview->z, frac);
 
 	viewangle = oldview->angle + R_LerpAngle(oldview->angle, newview->angle, frac);
