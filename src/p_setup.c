@@ -4174,6 +4174,8 @@ boolean P_LoadLevel(boolean fromnetsave, boolean reloadinggamestate)
 
 	P_ResetWaypoints();
 
+	R_ResetFirstLerp();
+
 	P_MapStart();
 
 	if (!P_LoadMapFromFile())

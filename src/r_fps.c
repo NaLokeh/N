@@ -366,7 +366,7 @@ void R_SetThinkerOldStates(void)
 					mo->old_z = mo->new_z;
 				}
 			}
-			else if (i == THINK_POLYOBJ)
+			/*else if (i == THINK_POLYOBJ)
 			{
 				if (ISA(T_PolyObjRotate))
 				{
@@ -383,14 +383,13 @@ void R_SetThinkerOldStates(void)
 					if (pobj == NULL) continue;
 					SetPolyobjOldState(pobj);
 				}
-				// FIXME: waypoints are too buggy on DSZ2
-				/*else if (ISA(T_PolyObjWaypoint))
+				else if (ISA(T_PolyObjWaypoint))
 				{
 					CAST(p, polywaypoint_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					SetPolyobjOldState(pobj);
-				}*/
+				}
 				else if (ISA(T_PolyDoorSlide))
 				{
 					CAST(p, polyslidedoor_t);
@@ -414,15 +413,16 @@ void R_SetThinkerOldStates(void)
 					if (pobj == NULL) continue;
 					SetPolyobjOldState(pobj);
 				}
-				/*else if (ISA(T_PolyObjRotDisplace))
+				else if (ISA(T_PolyObjRotDisplace))
 				{
 					CAST(p, polyrotdisplace_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					SetPolyobjOldState(pobj);
-				}*/
-			}
-			else // Other thinkers
+				}
+			}*/
+			// Other thinkers
+			//else
 			{
 				if (ISA(T_MoveCeiling) || ISA(T_CrushCeiling))
 				{
@@ -558,6 +558,8 @@ void R_ResetFirstLerp(void)
 	thinker_t *th;
 	thinklistnum_t i;
 
+	firsttics = 2;
+
 	for (i = 0; i <= NUM_THINKERLISTS-1; i++)
 	{
 		for (th = thlist[i].next; th != &thlist[i]; th = th->next)
@@ -575,7 +577,7 @@ void R_ResetFirstLerp(void)
 				CAST(mo, precipmobj_t);
 				mo->firstlerp = 0;
 			}
-			else if (i == THINK_POLYOBJ)
+			/*else if (i == THINK_POLYOBJ)
 			{
 				if (ISA(T_PolyObjRotate))
 				{
@@ -592,14 +594,13 @@ void R_ResetFirstLerp(void)
 					if (pobj == NULL) continue;
 					pobj->firstlerp = 0;
 				}
-				// FIXME: waypoints are too buggy on DSZ2
-				/*else if (ISA(T_PolyObjWaypoint))
+				else if (ISA(T_PolyObjWaypoint))
 				{
 					CAST(p, polywaypoint_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					pobj->firstlerp = 0;
-				}*/
+				}
 				else if (ISA(T_PolyDoorSlide))
 				{
 					CAST(p, polyslidedoor_t);
@@ -622,16 +623,16 @@ void R_ResetFirstLerp(void)
 					if (pobj == NULL) continue;
 					pobj->firstlerp = 0;
 				}
-				/*else if (ISA(T_PolyObjRotDisplace))
+				else if (ISA(T_PolyObjRotDisplace))
 				{
 					CAST(p, polyrotdisplace_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					pobj->firstlerp = 0;
-				}*/
-			}
+				}
+			}*/
 			// Other thinkers
-			else
+			//else
 			{
 				if (ISA(T_MoveCeiling) || ISA(T_CrushCeiling))
 				{
@@ -782,7 +783,7 @@ void R_SetThinkerNewStates(void)
 					mo->new_z = mo->z;
 				}
 			}
-			else if (i == THINK_POLYOBJ)
+			/*else if (i == THINK_POLYOBJ)
 			{
 				if (ISA(T_PolyObjRotate))
 				{
@@ -799,14 +800,13 @@ void R_SetThinkerNewStates(void)
 					if (pobj == NULL) continue;
 					SetPolyobjNewState(pobj);
 				}
-				// FIXME: waypoints are too buggy on DSZ2
-				/*else if (ISA(T_PolyObjWaypoint))
+				else if (ISA(T_PolyObjWaypoint))
 				{
 					CAST(p, polywaypoint_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					SetPolyobjNewState(pobj);
-				}*/
+				}
 				else if (ISA(T_PolyDoorSlide))
 				{
 					CAST(p, polyslidedoor_t);
@@ -837,16 +837,16 @@ void R_SetThinkerNewStates(void)
 					pobj->firstlerp = p->firstlerp;
 					SetPolyobjNewState(pobj);
 				}
-				/*else if (ISA(T_PolyObjRotDisplace))
+				else if (ISA(T_PolyObjRotDisplace))
 				{
 					CAST(p, polyrotdisplace_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					SetPolyobjNewState(pobj);
-				}*/
-			}
+				}
+			}*/
 			// Other thinkers
-			else
+			//else
 			{
 				if (ISA(T_MoveCeiling) || ISA(T_CrushCeiling))
 				{
@@ -1125,7 +1125,7 @@ void R_DoThinkerLerp(fixed_t frac)
 			}
 			if (cv_interpmovingplatforms.value)
 			{
-				if (i == THINK_POLYOBJ)
+				/*if (i == THINK_POLYOBJ)
 				{
 					if (ISA(T_PolyObjRotate))
 					{
@@ -1142,14 +1142,13 @@ void R_DoThinkerLerp(fixed_t frac)
 						if (pobj == NULL) continue;
 						LerpPolyobjState(pobj, frac);
 					}
-					// FIXME: waypoints are too buggy on DSZ2
-					/*else if (ISA(T_PolyObjWaypoint))
+					else if (ISA(T_PolyObjWaypoint))
 					{
 						CAST(p, polywaypoint_t);
 						polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 						if (pobj == NULL) continue;
 						LerpPolyobjState(pobj, frac);
-					}*/
+					}
 					else if (ISA(T_PolyDoorSlide))
 					{
 						CAST(p, polyslidedoor_t);
@@ -1174,16 +1173,16 @@ void R_DoThinkerLerp(fixed_t frac)
 						if (pobj == NULL) continue;
 						LerpPolyobjState(pobj, frac);
 					}
-					/*else if (ISA(T_PolyObjRotDisplace))
+					else if (ISA(T_PolyObjRotDisplace))
 					{
 						CAST(p, polyrotdisplace_t);
 						polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 						if (pobj == NULL) continue;
 						LerpPolyobjState(pobj, frac);
-					}*/
-				}
+					}
+				}*/
 				// Other thinkers
-				else
+				//else
 				{
 					if (ISA(T_MoveCeiling) || ISA(T_CrushCeiling))
 					{
@@ -1379,7 +1378,7 @@ void R_ResetThinkerLerp(void)
 					mo->z = mo->new_z;
 				}
 			}
-			else if (i == THINK_POLYOBJ)
+			/*else if (i == THINK_POLYOBJ)
 			{
 				if (ISA(T_PolyObjRotate))
 				{
@@ -1396,14 +1395,13 @@ void R_ResetThinkerLerp(void)
 					if (pobj == NULL) continue;
 					ResetPolyobjState(pobj);
 				}
-				// FIXME: waypoints are too buggy on DSZ2
-				/*else if (ISA(T_PolyObjWaypoint))
+				else if (ISA(T_PolyObjWaypoint))
 				{
 					CAST(p, polywaypoint_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					ResetPolyobjState(pobj);
-				}*/
+				}
 				else if (ISA(T_PolyDoorSlide))
 				{
 					CAST(p, polyslidedoor_t);
@@ -1428,16 +1426,16 @@ void R_ResetThinkerLerp(void)
 					if (pobj == NULL) continue;
 					ResetPolyobjState(pobj);
 				}
-				/*else if (ISA(T_PolyObjRotDisplace))
+				else if (ISA(T_PolyObjRotDisplace))
 				{
 					CAST(p, polyrotdisplace_t);
 					polyobj_t *pobj = Polyobj_GetForNum(p->polyObjNum);
 					if (pobj == NULL) continue;
 					ResetPolyobjState(pobj);
-				}*/
-			}
+				}
+			}*/
 			// Other thinkers
-			else
+			//else
 			{
 				if (ISA(T_MoveCeiling) || ISA(T_CrushCeiling))
 				{

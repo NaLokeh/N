@@ -721,7 +721,7 @@ void D_SRB2Loop(void)
 #define caninterpolate (cv_frameinterpolation.value && !(gamestate == GS_CUTSCENE || gamestate == GS_INTRO || gamestate == GS_CREDITS || gamestate == GS_INTERMISSION))
 		if (!d_realtics && !singletics)
 		{
-			if (caninterpolate)
+			if (caninterpolate && firsttics == 0)
 			{
 				fixed_t oldrendertimefrac = 0;
 
@@ -774,13 +774,17 @@ void D_SRB2Loop(void)
 		if (d_realtics || singletics)
 			TryRunTics(d_realtics);
 
+		if (d_realtics)
+			if (firsttics)
+				firsttics--;
+
 		if (lastdraw || singletics || gametic > rendergametic)
 		{
 			rendergametic = gametic;
 			rendertimeout = entertic+TICRATE/17;
 
 			// Update display, next frame, with current state.
-			if (caninterpolate)
+			if (caninterpolate && firsttics == 0)
 			{
 				rendertimefrac = I_GetTimeFrac();
 				R_DoThinkerLerp(rendertimefrac);

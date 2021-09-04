@@ -79,6 +79,7 @@ mobj_t *r_viewmobj;
 fixed_t rendertimefrac;
 fixed_t renderdeltatics;
 boolean tic_happened = false;
+UINT8 firsttics = 2;
 
 //
 // precalculated math tables

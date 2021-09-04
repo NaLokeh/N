@@ -39,6 +39,7 @@ extern fixed_t rendertimefrac;
 // Evaluated delta tics for this frame (how many tics since the last frame)
 extern fixed_t renderdeltatics;
 extern boolean tic_happened;
+extern UINT8 firsttics;
 
 //
 // Lighting LUT.
