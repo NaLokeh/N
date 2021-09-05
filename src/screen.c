@@ -162,26 +162,32 @@ void SCR_SetDrawFuncs(void)
 		spanfuncs_npo2[SPANDRAWFUNC_FOG] = NULL; // Not needed
 
 #ifdef RUSEASM
-	if (R_ASM)
-	{
-		if (R_MMX)
+		if (R_ASM)
 		{
-			colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_MMX;
-			//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
-			//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
-			colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_MMX;
-			spanfuncs[BASEDRAWFUNC] = R_DrawSpan_8_MMX;
+			if (R_MMX)
+			{
+				colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_MMX;
+				//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
+				//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
+				colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_MMX;
+				spanfuncs[BASEDRAWFUNC] = R_DrawSpan_8_MMX;
+			}
+			else
+			{
+				colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_ASM;
+				//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
+				//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
+				colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_ASM;
+			}
 		}
-		else
-		{
-			colfuncs[BASEDRAWFUNC] = R_DrawColumn_8_ASM;
-			//colfuncs[COLDRAWFUNC_SHADE] = R_DrawShadeColumn_8_ASM;
-			//colfuncs[COLDRAWFUNC_FUZZY] = R_DrawTranslucentColumn_8_ASM;
-			colfuncs[COLDRAWFUNC_TWOSMULTIPATCH] = R_Draw2sMultiPatchColumn_8_ASM;
-		}
-	}
 #endif
-}
+	}
+/*	else if (vid.bpp > 1)
+	{
+		I_OutputMsg("using highcolor mode\n");
+		spanfunc = basespanfunc = R_DrawSpan_16;
+		transcolfunc = R_DrawTranslatedColumn_16;
+		transtransfunc = R_DrawTranslucentColumn_16; // No 16bit operation for this function
 
 		colfunc = basecolfunc = R_DrawColumn_16;
 		shadecolfunc = NULL; // detect error if used somewhere..
@@ -245,7 +251,7 @@ void SCR_SetResolution(void)
 	V_SetPalette(0);
 
 	// set the apprpriate drawers
-	SetupDrawRoutines();
+	SCR_SetDrawFuncs();
 	setresneeded[2] = 0;
 }
 
