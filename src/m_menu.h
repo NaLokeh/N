@@ -135,6 +135,8 @@ typedef enum
 	// MN_HELP,
 
 	MN_SPECIAL,
+	MN_DISCORD_RQ,
+	MN_DISCORD_OPT,
 	NUMMENUTYPES,
 } menutype_t; // up to 63; MN_SPECIAL = 53
 #define MTREE2(a,b) (a | (b<<MENUBITS))
@@ -484,6 +486,7 @@ UINT16 M_GetColorBefore(UINT16 color);
 UINT16 M_GetColorAfter(UINT16 color);
 void M_InitPlayerSetupColors(void);
 void M_FreePlayerSetupColors(void);
+void M_RefreshPauseMenu(void);
 
 // These defines make it a little easier to make menus
 #define DEFAULTMENUSTYLE(id, header, source, prev, x, y)\
