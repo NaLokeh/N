@@ -248,10 +248,10 @@ static void D_Display(void)
 	// check for change of screen size
 	if (!wipe)
 	{
-		if (setresneeded[2])
+		if (setrenderneeded || setmodeneeded)
+			SCR_SetMode(); // change video mode
+		else if (setresneeded[2])
 			SCR_SetResolution();
-		else if (setmodeneeded)
-			SCR_SetMode();
 	}
 
 	// Recalc the screen

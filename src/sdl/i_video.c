@@ -1644,9 +1644,9 @@ INT32 VID_SetResolution(INT32 width, INT32 height)
 			SDL_FreeSurface(bufSurface);
 			bufSurface = NULL;
 		}
-
-		Impl_VideoSetupBuffer();
 	}
+
+	Impl_VideoSetupBuffer();
 
 	return SDL_TRUE;
 }
