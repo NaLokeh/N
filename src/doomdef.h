@@ -125,7 +125,7 @@ extern char logfilename[1024];
 #define SRB2APPLICATION "SRB2"
 
 // uncapped ver
-#define UNCAPPEDVERSION "2.0"
+#define UNCAPPEDVERSION "1.0"
 
 //#define DEVELOP // Disable this for release builds to remove excessive cheat commands and enable MD5 checking and stuff, all in one go. :3
 #ifdef DEVELOP
@@ -138,8 +138,8 @@ extern char logfilename[1024];
 #define VERSIONSTRING "v"SRB2VERSION" "BETAVERSION
 #define VERSIONSTRING_RC SRB2VERSION " " BETAVERSION "\0"
 #elif defined (UNCAPPEDVERSION)
-#define VERSIONSTRING "v"SRB2VERSION" (Uncapped v"UNCAPPEDVERSION")"
-#define VERSIONSTRING_RC SRB2VERSION " (Uncapped v" UNCAPPEDVERSION ")\0"
+#define VERSIONSTRING "v"SRB2VERSION" (Uncapped PLUS v"UNCAPPEDVERSION")"
+#define VERSIONSTRING_RC SRB2VERSION " (Uncapped PLUS v" UNCAPPEDVERSION ")\0"
 #else
 #define VERSIONSTRING "v"SRB2VERSION" "
 #define VERSIONSTRING_RC SRB2VERSION "\0"
