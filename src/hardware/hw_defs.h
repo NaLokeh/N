@@ -18,6 +18,12 @@
 #define ZCLIP_PLANE 4.0f // Used for the actual game drawing
 #define NZCLIP_PLANE 0.9f // Seems to be only used for the HUD and screen textures
 
+// The width/height/depth of the palette lookup table used by palette rendering.
+// Changing this also requires changing the shader code!
+// Also assumed to be a power of two in some parts of the code.
+// 64 seems to work perfectly for the vanilla palette.
+#define HWR_PALETTE_LUT_SIZE 64
+
 // ==========================================================================
 //                                                               SIMPLE TYPES
 // ==========================================================================
@@ -133,32 +139,27 @@ typedef struct
 } FOutVector;
 
 #ifdef GL_SHADERS
-// Predefined shader types
+
+// Shader targets used to render specific types of geometry.
+// A shader target is resolved to an actual shader with HWR_GetShaderFromTarget.
+// The shader returned may be a base shader or a custom shader.
 enum
 {
-	SHADER_DEFAULT = 0,
-
 	SHADER_FLOOR,
 	SHADER_WALL,
 	SHADER_SPRITE,
-	SHADER_MODEL, SHADER_MODEL_LIGHTING,
+	SHADER_MODEL,
 	SHADER_WATER,
 	SHADER_FOG,
 	SHADER_SKY,
+	SHADER_PALETTE_POSTPROCESS,
 
-	NUMBASESHADERS,
+	NUMSHADERTARGETS,
 };
 
 // Maximum amount of shader programs
-// Must be higher than NUMBASESHADERS
-#define HWR_MAXSHADERS 16
-
-// Shader sources (vertex and fragment)
-typedef struct
-{
-	char *vertex;
-	char *fragment;
-} shadersource_t;
+// Must be at least NUMSHADERTARGETS*2 to fit base and custom shaders for each shader target.
+#define HWR_MAXSHADERS NUMSHADERTARGETS*2
 
 // Custom shader reference table
 typedef struct
@@ -281,6 +282,7 @@ struct FSurfaceInfo
 	RGBA_t			PolyColor;
 	RGBA_t			TintColor;
 	RGBA_t			FadeColor;
+	UINT32			LightTableId;
 	FLightInfo		LightInfo;
 };
 typedef struct FSurfaceInfo FSurfaceInfo;
@@ -288,7 +290,7 @@ typedef struct FSurfaceInfo FSurfaceInfo;
 #define GL_DEFAULTMIX 0x00000000
 #define GL_DEFAULTFOG 0xFF000000
 
-//Hurdler: added for backward compatibility
+// Various settings and states for the rendering backend.
 enum hwdsetspecialstate
 {
 	HWD_SET_MODEL_LIGHTING = 1,
@@ -300,15 +302,13 @@ enum hwdsetspecialstate
 
 typedef enum hwdsetspecialstate hwdspecialstate_t;
 
-// Lactozilla: Shader options
-enum hwdshaderoption
+enum hwdshaderstage
 {
-	HWD_SHADEROPTION_OFF,
-	HWD_SHADEROPTION_ON,
-	HWD_SHADEROPTION_NOCUSTOM,
+	HWD_SHADERSTAGE_VERTEX,
+	HWD_SHADERSTAGE_FRAGMENT,
 };
 
-typedef enum hwdshaderoption hwdshaderoption_t;
+typedef enum hwdshaderstage hwdshaderstage_t;
 
 // Lactozilla: Shader info
 // Generally set at the start of the frame.
