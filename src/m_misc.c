@@ -42,6 +42,8 @@
 #include "i_system.h"
 #include "command.h" // cv_execversion
 
+#include "r_main.h"
+
 #include "m_anigif.h"
 
 // So that the screenshot menu auto-updates...
@@ -1247,13 +1249,16 @@ void M_StartMovie(void)
 void M_SaveFrame(void)
 {
 #if NUMSCREENS > 2
-	// paranoia: should be unnecessary without singletics
-	static tic_t oldtic = 0;
+	if (cv_frameinterpolation.value)
+	{
+		static UINT16 frame = 0;
+		UINT16 newframe = I_GetFrameReference(cv_gifinterpolation.value ? 60 : TICRATE);
 
-	if (oldtic == I_GetTime())
-		return;
-	else
-		oldtic = I_GetTime();
+		if (newframe == frame)
+			return;
+
+		frame = newframe;
+	}
 
 	switch (moviemode)
 	{

@@ -173,8 +173,8 @@ static INT32 vidm_column_size;
 static char vidm_customres[vidm_customreslength];
 
 // new menus
-static tic_t recatkdrawtimer = 0;
-static tic_t ntsatkdrawtimer = 0;
+static fixed_t recatkdrawtimer = 0;
+static fixed_t ntsatkdrawtimer = 0;
 
 static tic_t charseltimer = 0;
 static fixed_t char_scroll = 0;
@@ -209,17 +209,17 @@ menu_t SPauseDef;
 static levelselect_t levelselect = {0, NULL};
 static UINT8 levelselectselect[3];
 static patch_t *levselp[2][3];
-static INT32 lsoffs[2];
+static fixed_t lsoffs[2];
 
 #define lsrow levelselectselect[0]
 #define lscol levelselectselect[1]
 #define lshli levelselectselect[2]
 
 #define lshseperation 101
-#define lsbasevseperation (62*vid.height)/(BASEVIDHEIGHT*vid.dupy) //62
+#define lsbasevseperation ((62*vid.height)/(BASEVIDHEIGHT*vid.dupy)) //62
 #define lsheadingheight 16
 #define getheadingoffset(row) (levelselect.rows[row].header[0] ? lsheadingheight : 0)
-#define lsvseperation(row) lsbasevseperation + getheadingoffset(row)
+#define lsvseperation(row) (lsbasevseperation + getheadingoffset(row))
 #define lswide(row) levelselect.rows[row].mapavailable[3]
 
 #define lsbasex 19
@@ -1389,6 +1389,11 @@ static menuitem_t OP_VideoOptionsMenu[] =
 	{IT_HEADER, NULL, "Renderer", NULL, 208},
 	{IT_CALL | IT_STRING, NULL, "OpenGL Options...",         M_OpenGLOptionsMenu, 214},
 #endif
+
+	{IT_HEADER, NULL, "Uncapped", NULL, 222},
+	{IT_STRING | IT_CVAR, NULL, "Frame Interpolation",       &cv_frameinterpolation, 228},
+	{IT_STRING | IT_CVAR, NULL, "Frame Rate Cap",       	 &cv_frameratecap, 233},
+	{IT_STRING | IT_CVAR, NULL, "Interp... moving platforms",&cv_interpmovingplatforms, 238}
 };
 
 static menuitem_t OP_VideoModeMenu[] =
@@ -1561,6 +1566,7 @@ static menuitem_t OP_ScreenshotOptionsMenu[] =
 	{IT_STRING|IT_CVAR, NULL, "Downscaling",       &cv_gif_downscale,              95},
 	{IT_STRING|IT_CVAR, NULL, "Region Optimizing", &cv_gif_optimize,              100},
 	{IT_STRING|IT_CVAR, NULL, "Local Color Table", &cv_gif_localcolortable,       105},
+	{IT_STRING|IT_CVAR, NULL, "Interpolated/Uncapped GIFs",       &cv_gifinterpolation,	      110},
 
 	{IT_STRING|IT_CVAR, NULL, "Downscaling",       &cv_apng_downscale,             95},
 	{IT_STRING|IT_CVAR, NULL, "Memory Level",      &cv_zlib_memorya,              100},
@@ -1577,9 +1583,9 @@ enum
 	op_movie_folder = 11,
 	op_screenshot_capture = 12,
 	op_screenshot_gif_start = 13,
-	op_screenshot_gif_end = 15,
-	op_screenshot_apng_start = 16,
-	op_screenshot_apng_end = 20,
+	op_screenshot_gif_end = 16,
+	op_screenshot_apng_start = 17,
+	op_screenshot_apng_end = 21,
 };
 
 static menuitem_t OP_EraseDataMenu[] =
@@ -5408,7 +5414,7 @@ static void M_HandleLevelPlatter(INT32 choice)
 				{
 					if (!lsoffs[0]) // prevent sound spam
 					{
-						lsoffs[0] = -8;
+						lsoffs[0] = -8 * FRACUNIT;
 						S_StartSound(NULL,sfx_s3kb7);
 					}
 					return;
@@ -5417,7 +5423,7 @@ static void M_HandleLevelPlatter(INT32 choice)
 			}
 			lsrow++;
 
-			lsoffs[0] = lsvseperation(lsrow);
+			lsoffs[0] = lsvseperation(lsrow) * FRACUNIT;
 
 			if (levelselect.rows[lsrow].header[0])
 				lshli = lsrow;
@@ -5436,7 +5442,7 @@ static void M_HandleLevelPlatter(INT32 choice)
 				{
 					if (!lsoffs[0]) // prevent sound spam
 					{
-						lsoffs[0] = 8;
+						lsoffs[0] = 8 * FRACUNIT;
 						S_StartSound(NULL,sfx_s3kb7);
 					}
 					return;
@@ -5445,7 +5451,7 @@ static void M_HandleLevelPlatter(INT32 choice)
 			}
 			lsrow--;
 
-			lsoffs[0] = -lsvseperation(iter);
+			lsoffs[0] = -lsvseperation(iter) * FRACUNIT;
 
 			if (levelselect.rows[lsrow].header[0])
 				lshli = lsrow;
@@ -5486,7 +5492,7 @@ static void M_HandleLevelPlatter(INT32 choice)
 				}
 				else if (!lsoffs[0]) // prevent sound spam
 				{
-					lsoffs[0] = -8;
+					lsoffs[0] = -8 * FRACUNIT;
 					S_StartSound(NULL,sfx_s3kb2);
 				}
 				break;
@@ -5512,14 +5518,14 @@ static void M_HandleLevelPlatter(INT32 choice)
 			{
 				lscol++;
 
-				lsoffs[1] = (lswide(lsrow) ? 8 : -lshseperation);
+				lsoffs[1] = (lswide(lsrow) ? 8 : -lshseperation) * FRACUNIT;
 				S_StartSound(NULL,sfx_s3kb7);
 
 				ifselectvalnextmap(lscol) else ifselectvalnextmap(0)
 			}
 			else if (!lsoffs[1]) // prevent sound spam
 			{
-				lsoffs[1] = 8;
+				lsoffs[1] = 8 * FRACUNIT;
 				S_StartSound(NULL,sfx_s3kb7);
 			}
 			break;
@@ -5544,14 +5550,14 @@ static void M_HandleLevelPlatter(INT32 choice)
 			{
 				lscol--;
 
-				lsoffs[1] = (lswide(lsrow) ? -8 : lshseperation);
+				lsoffs[1] = (lswide(lsrow) ? -8 : lshseperation) * FRACUNIT;
 				S_StartSound(NULL,sfx_s3kb7);
 
 				ifselectvalnextmap(lscol) else ifselectvalnextmap(0)
 			}
 			else if (!lsoffs[1]) // prevent sound spam
 			{
-				lsoffs[1] = -8;
+				lsoffs[1] = -8 * FRACUNIT;
 				S_StartSound(NULL,sfx_s3kb7);
 			}
 			break;
@@ -5714,7 +5720,7 @@ static void M_DrawRecordAttackForeground(void)
 
 	for (i = -12; i < (BASEVIDHEIGHT/height) + 12; i++)
 	{
-		INT32 y = ((i*height) - (height - ((recatkdrawtimer*2)%height)));
+		INT32 y = ((i*height) - (height - ((FixedInt(recatkdrawtimer*2))%height)));
 		// don't draw above the screen
 		{
 			INT32 sy = FixedMul(y, dupz<<FRACBITS) >> FRACBITS;
@@ -5731,17 +5737,18 @@ static void M_DrawRecordAttackForeground(void)
 	}
 
 	// draw clock
-	fa = (FixedAngle(((recatkdrawtimer * 4) % 360)<<FRACBITS)>>ANGLETOFINESHIFT) & FINEMASK;
+	fa = (FixedAngle(((FixedInt(recatkdrawtimer * 4)) % 360)<<FRACBITS)>>ANGLETOFINESHIFT) & FINEMASK;
 	V_DrawSciencePatch(160<<FRACBITS, (80<<FRACBITS) + (4*FINESINE(fa)), 0, clock, FRACUNIT);
 
 	// Increment timer.
-	recatkdrawtimer++;
+	recatkdrawtimer += renderdeltatics;
+	if (recatkdrawtimer < 0) recatkdrawtimer = 0;
 }
 
 // NiGHTS Attack background.
 static void M_DrawNightsAttackMountains(void)
 {
-	static INT32 bgscrollx;
+	static fixed_t bgscrollx;
 	INT32 dupz = (vid.dupx < vid.dupy ? vid.dupx : vid.dupy);
 	patch_t *background = W_CachePatchName(curbgname, PU_PATCH);
 	INT16 w = background->width;
@@ -5757,7 +5764,7 @@ static void M_DrawNightsAttackMountains(void)
 	if (x < BASEVIDWIDTH)
 		V_DrawScaledPatch(x, y, V_SNAPTOLEFT, background);
 
-	bgscrollx += (FRACUNIT/2);
+	bgscrollx += FixedMul(FRACUNIT/2, renderdeltatics);
 	if (bgscrollx > w<<FRACBITS)
 		bgscrollx &= 0xFFFF;
 }
@@ -5788,7 +5795,7 @@ static void M_DrawNightsAttackBackground(void)
 	M_DrawNightsAttackMountains();
 
 	// back top foreground patch
-	x = 0-(ntsatkdrawtimer%backtopwidth);
+	x = 0-(FixedInt(ntsatkdrawtimer)%backtopwidth);
 	V_DrawScaledPatch(x, y, V_SNAPTOTOP|V_SNAPTOLEFT, backtopfg);
 	for (i = 0; i < 3; i++)
 	{
@@ -5799,7 +5806,7 @@ static void M_DrawNightsAttackBackground(void)
 	}
 
 	// front top foreground patch
-	x = 0-((ntsatkdrawtimer*2)%fronttopwidth);
+	x = 0-(FixedInt(ntsatkdrawtimer*2)%fronttopwidth);
 	V_DrawScaledPatch(x, y, V_SNAPTOTOP|V_SNAPTOLEFT, fronttopfg);
 	for (i = 0; i < 3; i++)
 	{
@@ -5810,7 +5817,7 @@ static void M_DrawNightsAttackBackground(void)
 	}
 
 	// back bottom foreground patch
-	x = 0-(ntsatkdrawtimer%backbottomwidth);
+	x = 0-(FixedInt(ntsatkdrawtimer)%backbottomwidth);
 	y = BASEVIDHEIGHT - backbottomheight;
 	V_DrawScaledPatch(x, y, V_SNAPTOBOTTOM|V_SNAPTOLEFT, backbottomfg);
 	for (i = 0; i < 3; i++)
@@ -5822,7 +5829,7 @@ static void M_DrawNightsAttackBackground(void)
 	}
 
 	// front bottom foreground patch
-	x = 0-((ntsatkdrawtimer*2)%frontbottomwidth);
+	x = 0-(FixedInt(ntsatkdrawtimer*2)%frontbottomwidth);
 	y = BASEVIDHEIGHT - frontbottomheight;
 	V_DrawScaledPatch(x, y, V_SNAPTOBOTTOM|V_SNAPTOLEFT, frontbottomfg);
 	for (i = 0; i < 3; i++)
@@ -5834,7 +5841,8 @@ static void M_DrawNightsAttackBackground(void)
 	}
 
 	// Increment timer.
-	ntsatkdrawtimer++;
+	ntsatkdrawtimer += renderdeltatics;
+	if (ntsatkdrawtimer < 0) ntsatkdrawtimer = 0;
 }
 
 // NiGHTS Attack floating Super Sonic.
@@ -5842,16 +5850,17 @@ static patch_t *ntssupersonic[2];
 static void M_DrawNightsAttackSuperSonic(void)
 {
 	const UINT8 *colormap = R_GetTranslationColormap(TC_DEFAULT, SKINCOLOR_YELLOW, GTC_CACHE);
-	INT32 timer = (ntsatkdrawtimer/4) % 2;
-	angle_t fa = (FixedAngle(((ntsatkdrawtimer * 4) % 360)<<FRACBITS)>>ANGLETOFINESHIFT) & FINEMASK;
+	INT32 timer = FixedInt(ntsatkdrawtimer/4) % 2;
+	angle_t fa = (FixedAngle((FixedInt(ntsatkdrawtimer * 4) % 360)<<FRACBITS)>>ANGLETOFINESHIFT) & FINEMASK;
 	V_DrawFixedPatch(235<<FRACBITS, (120<<FRACBITS) - (8*FINESINE(fa)), FRACUNIT, 0, ntssupersonic[timer], colormap);
 }
 
 static void M_DrawLevelPlatterMenu(void)
 {
 	UINT8 iter = lsrow, sizeselect = (lswide(lsrow) ? 1 : 0);
-	INT32 y = lsbasey + lsoffs[0] - getheadingoffset(lsrow);
+	INT32 y = lsbasey + FixedInt(lsoffs[0]) - getheadingoffset(lsrow);
 	const INT32 cursorx = (sizeselect ? 0 : (lscol*lshseperation));
+	fixed_t cursormovefrac;
 
 	if (currentMenu->prevMenu == &SP_TimeAttackDef)
 	{
@@ -5918,7 +5927,7 @@ static void M_DrawLevelPlatterMenu(void)
 
 	// draw cursor box
 	if (levellistmode != LLM_CREATESERVER || lsrow)
-		V_DrawSmallScaledPatch(lsbasex + cursorx + lsoffs[1], lsbasey+lsoffs[0], 0, (levselp[sizeselect][((skullAnimCounter/4) ? 1 : 0)]));
+		V_DrawSmallScaledPatch(lsbasex + cursorx + FixedInt(lsoffs[1]), lsbasey+FixedInt(lsoffs[0]), 0, (levselp[sizeselect][((skullAnimCounter/4) ? 1 : 0)]));
 
 #if 0
 	if (levelselect.rows[lsrow].maplist[lscol] > 0)
@@ -5926,13 +5935,27 @@ static void M_DrawLevelPlatterMenu(void)
 #endif
 
 	// handle movement of cursor box
-	if (lsoffs[0] > 1 || lsoffs[0] < -1)
-		lsoffs[0] = 2*lsoffs[0]/3;
+	cursormovefrac = FixedDiv(2, 3);
+
+	if (lsoffs[0] > FRACUNIT || lsoffs[0] < -FRACUNIT)
+	{
+		fixed_t offs = lsoffs[0];
+		fixed_t newoffs = FixedMul(offs, cursormovefrac);
+		fixed_t deltaoffs = newoffs - offs;
+		newoffs = offs + FixedMul(deltaoffs, renderdeltatics);
+		lsoffs[0] = newoffs;
+	}
 	else
 		lsoffs[0] = 0;
 
-	if (lsoffs[1] > 1 || lsoffs[1] < -1)
-		lsoffs[1] = 2*lsoffs[1]/3;
+	if (lsoffs[1] > FRACUNIT || lsoffs[1] < -FRACUNIT)
+	{
+		fixed_t offs = lsoffs[1];
+		fixed_t newoffs = FixedMul(offs, cursormovefrac);
+		fixed_t deltaoffs = newoffs - offs;
+		newoffs = offs + FixedMul(deltaoffs, renderdeltatics);
+		lsoffs[1] = newoffs;
+	}
 	else
 		lsoffs[1] = 0;
 
@@ -8233,8 +8256,8 @@ static void M_StartTutorial(INT32 choice)
 // ==============
 
 static INT32 saveSlotSelected = 1;
-static INT32 loadgamescroll = 0;
-static UINT8 loadgameoffset = 0;
+static fixed_t loadgamescroll = 0;
+static fixed_t loadgameoffset = 0;
 
 static void M_CacheLoadGameData(void)
 {
@@ -8259,14 +8282,14 @@ static void M_DrawLoadGameData(void)
 	{
 		prev_i = i;
 		savetodraw = (saveSlotSelected + i + numsaves)%numsaves;
-		x = (BASEVIDWIDTH/2 - 42 + loadgamescroll) + (i*hsep);
+		x = (BASEVIDWIDTH/2 - 42 + FixedInt(loadgamescroll)) + (i*hsep);
 		y = 33 + 9;
 
 		{
 			INT32 diff = x - (BASEVIDWIDTH/2 - 42);
 			if (diff < 0)
 				diff = -diff;
-			diff = (42 - diff)/3 - loadgameoffset;
+			diff = (42 - diff)/3 - FixedInt(loadgameoffset);
 			if (diff < 0)
 				diff = 0;
 			y -= diff;
@@ -8550,15 +8573,25 @@ skiplife:
 
 static void M_DrawLoad(void)
 {
+	fixed_t scrollfrac = FixedDiv(2, 3);
+
 	M_DrawMenuTitle();
 
-	if (loadgamescroll > 1 || loadgamescroll < -1)
-		loadgamescroll = 2*loadgamescroll/3;
+	if (loadgamescroll > FRACUNIT || loadgamescroll < -FRACUNIT)
+	{
+		fixed_t newscroll = FixedMul(loadgamescroll, scrollfrac);
+		fixed_t deltascroll = FixedMul(newscroll - loadgamescroll, renderdeltatics);
+		loadgamescroll += deltascroll;
+	}
 	else
 		loadgamescroll = 0;
 
-	if (loadgameoffset > 1)
-		loadgameoffset = 2*loadgameoffset/3;
+	if (loadgameoffset > FRACUNIT)
+	{
+		fixed_t newoffs = FixedMul(loadgameoffset, scrollfrac);
+		fixed_t deltaoffs = FixedMul(newoffs - loadgameoffset, renderdeltatics);
+		loadgameoffset += deltaoffs;
+	}
 	else
 		loadgameoffset = 0;
 
@@ -8728,7 +8761,7 @@ static void M_ReadSaveStrings(void)
 	UINT8 lastseen = 0;
 
 	loadgamescroll = 0;
-	loadgameoffset = 14;
+	loadgameoffset = 14 * FRACUNIT;
 
 	for (i = 1; (i < MAXSAVEGAMES); i++) // slot 0 is no save
 	{
@@ -8819,7 +8852,7 @@ static void M_HandleLoadSave(INT32 choice)
 			++saveSlotSelected;
 			if (saveSlotSelected >= numsaves)
 				saveSlotSelected -= numsaves;
-			loadgamescroll = 90;
+			loadgamescroll = 90 * FRACUNIT;
 			break;
 
 		case KEY_LEFTARROW:
@@ -8827,7 +8860,7 @@ static void M_HandleLoadSave(INT32 choice)
 			--saveSlotSelected;
 			if (saveSlotSelected < 0)
 				saveSlotSelected += numsaves;
-			loadgamescroll = -90;
+			loadgamescroll = -90 * FRACUNIT;
 			break;
 
 		case KEY_ENTER:
@@ -8852,7 +8885,7 @@ static void M_HandleLoadSave(INT32 choice)
 			else if (!loadgameoffset)
 			{
 				S_StartSound(NULL, sfx_lose);
-				loadgameoffset = 14;
+				loadgameoffset = 14 * FRACUNIT;
 			}
 			break;
 
@@ -8878,7 +8911,7 @@ static void M_HandleLoadSave(INT32 choice)
 				}
 				else
 					S_StartSound(NULL, sfx_lose);
-				loadgameoffset = 14;
+				loadgameoffset = 14 * FRACUNIT;
 			}
 			break;
 	}
@@ -8938,13 +8971,13 @@ static void M_LoadGame(INT32 choice)
 //
 void M_ForceSaveSlotSelected(INT32 sslot)
 {
-	loadgameoffset = 14;
+	loadgameoffset = 14 * FRACUNIT;
 
 	// Already there? Whatever, then!
 	if (sslot == saveSlotSelected)
 		return;
 
-	loadgamescroll = 90;
+	loadgamescroll = 90 * FRACUNIT;
 	if (saveSlotSelected <= numsaves/2)
 		loadgamescroll = -loadgamescroll;
 
@@ -9182,7 +9215,7 @@ static void M_DrawSetupChoosePlayerMenu(void)
 	INT32 w = (vid.width/vid.dupx);
 
 	if (abs(char_scroll) > FRACUNIT)
-		char_scroll -= (char_scroll>>2);
+		char_scroll -= FixedMul(char_scroll>>2, renderdeltatics);
 	else // close enough.
 		char_scroll = 0; // just be exact now.
 
@@ -9210,7 +9243,9 @@ static void M_DrawSetupChoosePlayerMenu(void)
 
 	// Don't render the title map
 	hidetitlemap = true;
-	charseltimer++;
+
+	if (tic_happened)
+		charseltimer++;
 
 	// Background and borders
 	V_DrawFill(0, 0, bgwidth, vid.height, V_SNAPTOTOP|colormap[101]);
@@ -10919,8 +10954,9 @@ static void M_DrawRoomMenu(void)
 			strncpy(&text[dot_frame], "...", min(dots, 3 - dot_frame));
 		}
 
-		if (++frame == 12)
-			frame = -12;
+		if (tic_happened)
+			if (++frame == 12)
+				frame = -12;
 
 		currentMenu->menuitems[0].text = text;
 	}
@@ -11688,7 +11724,7 @@ static void M_HandleConnectIP(INT32 choice)
 // ========================
 // Tails 03-02-2002
 
-static UINT8      multi_tics;
+static UINT8	  multi_tics;
 static UINT8      multi_frame;
 static UINT8      multi_spr2;
 
@@ -11756,11 +11792,12 @@ static void M_DrawSetupMultiPlayerMenu(void)
 	y += 11;
 
 	// anim the player in the box
-	if (--multi_tics <= 0)
-	{
-		multi_frame++;
-		multi_tics = 4;
-	}
+	if (tic_happened)
+		if (--multi_tics <= 0)
+		{
+			multi_frame++;
+			multi_tics = 4;
+		}
 
 #define charw 74
 

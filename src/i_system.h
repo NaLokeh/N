@@ -54,10 +54,23 @@ precise_t I_GetPreciseTime(void);
   */
 int I_PreciseToMicros(precise_t);
 
+/** \brief  Sets the previous time for interpolation.
+*/
+void I_SetInterpolationDiff(void);
+
+/** \brief  Get the current time as a fraction of a tic since the last tic.
+*/
+fixed_t I_GetTimeFrac(void);
+
 /**	\brief	The I_Sleep function
 
 	\return	void
 */
+
+/** \brief Returns frame of current second at the specified FPS.
+*/
+UINT16 I_GetFrameReference(UINT16 fps);
+
 void I_Sleep(void);
 
 /**	\brief Get events

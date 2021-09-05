@@ -266,6 +266,14 @@ typedef enum {
 	PCF_THUNK = 32,
 } precipflag_t;
 
+// interpolation flags
+typedef enum
+{
+	MI_INTERP = 0,
+	MI_NOINTERP,
+	MI_NOINTERP2,
+} mobjinterp_t;
+
 // Map Object definition.
 typedef struct mobj_s
 {
@@ -274,6 +282,10 @@ typedef struct mobj_s
 
 	// Info for drawing: position.
 	fixed_t x, y, z;
+	fixed_t new_x, new_y, new_z;
+	fixed_t old_x, old_y, old_z; // position interpolation
+	INT32 firstlerp; // set after first lerp iteration so we don't lose positions on first frame
+	fixed_t lerp_x, lerp_y, lerp_z;
 
 	// More list: links in sector (if needed)
 	struct mobj_s *snext;
@@ -382,6 +394,7 @@ typedef struct mobj_s
 
 	boolean colorized; // Whether the mobj uses the rainbow colormap
 	boolean mirrored; // The object's rotations will be mirrored left to right, e.g., see frame AL from the right and AR from the left
+	mobjinterp_t interpmode; // Whether the mobj doesn't use interpolation
 	fixed_t shadowscale; // If this object casts a shadow, and the size relative to radius
 
 	// WARNING: New fields must be added separately to savegame and Lua.
@@ -401,6 +414,10 @@ typedef struct precipmobj_s
 
 	// Info for drawing: position.
 	fixed_t x, y, z;
+	fixed_t new_x, new_y, new_z;
+	fixed_t old_x, old_y, old_z; // position interpolation
+	INT32 firstlerp; // set after first lerp iteration so we don't lose positions on first frame
+	fixed_t lerp_x, lerp_y, lerp_z;
 
 	// More list: links in sector (if needed)
 	struct precipmobj_s *snext;

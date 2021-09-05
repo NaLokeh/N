@@ -64,6 +64,7 @@
 #include "deh_tables.h" // Dehacked list test
 #include "m_cond.h" // condition initialization
 #include "fastcmp.h"
+#include "r_fps.h" // Frame interpolation/uncapped
 #include "keys.h"
 #include "filesrch.h" // refreshdirmenu, mainwadstally
 #include "g_input.h" // tutorial mode control scheming
@@ -104,6 +105,7 @@ static char *startuppwads[MAX_WADFILES];
 
 boolean devparm = false; // started game with -devparm
 
+tic_t   d_realtics;
 boolean singletics = false; // timedemo
 boolean lastdraw = false;
 
@@ -233,17 +235,31 @@ gamestate_t wipegamestate = GS_LEVEL;
 INT16 wipetypepre = -1;
 INT16 wipetypepost = -1;
 
-static void D_Display(void)
+static boolean D_Display(void)
 {
 	boolean forcerefresh = false;
 	static boolean wipe = false;
 	INT32 wipedefindex = 0;
 
 	if (dedicated)
-		return;
+		return false;
 
 	if (nodrawers)
-		return; // for comparative timing/profiling
+		return false; // for comparative timing/profiling
+
+	if (cv_frameinterpolation.value == 1)
+	{
+		static UINT16 frame = 0;
+		UINT16 newframe = I_GetFrameReference(cv_frameratecap.value);
+
+		if (newframe == frame)
+		{
+			I_Sleep();// Sleep in main loop now only happens in 35 fps mode, so sleep here to avoid a full busy loop
+			return false;
+		}
+
+		frame = newframe;
+	}
 
 	// check for change of screen size
 	if (!wipe)
@@ -610,6 +626,7 @@ static void D_Display(void)
 		I_FinishUpdate(); // page flip or blit buffer
 		ps_swaptime = I_GetPreciseTime() - ps_swaptime;
 	}
+	return true;
 }
 
 // =========================================================================
@@ -620,7 +637,7 @@ tic_t rendergametic;
 
 void D_SRB2Loop(void)
 {
-	tic_t oldentertics = 0, entertic = 0, realtics = 0, rendertimeout = INFTICS;
+	tic_t oldentertics = 0, entertic = 0, rendertimeout = INFTICS;
 	static lumpnum_t gstartuplumpnum;
 
 	if (dedicated)
@@ -681,22 +698,59 @@ void D_SRB2Loop(void)
 
 		// get real tics
 		entertic = I_GetTime();
-		realtics = entertic - oldentertics;
+		d_realtics = entertic - oldentertics;
 		oldentertics = entertic;
 
 		refreshdirmenu = 0; // not sure where to put this, here as good as any?
 
 #ifdef DEBUGFILE
-		if (!realtics)
+		if (!d_realtics)
 			if (debugload)
 				debugload--;
 #endif
 
-		if (!realtics && !singletics)
+#define caninterpolate (cv_frameinterpolation.value && !(gamestate == GS_CUTSCENE || gamestate == GS_INTRO || gamestate == GS_CREDITS || gamestate == GS_INTERMISSION))
+		if (!d_realtics && !singletics)
 		{
-			I_Sleep();
+			if (caninterpolate && firsttics == 0)
+			{
+				fixed_t oldrendertimefrac = 0;
+
+				if (rendertimeout == entertic+TICRATE/17)
+				{
+					fixed_t entertimefrac = I_GetTimeFrac();
+					// renderdeltatics is a bit awkard to evaluate, since the system time interface is whole tic-based
+
+					oldrendertimefrac = rendertimefrac;
+					renderdeltatics = d_realtics * FRACUNIT;	
+					if (entertimefrac > rendertimefrac)
+						renderdeltatics += entertimefrac - rendertimefrac;
+					else
+						renderdeltatics -= rendertimefrac - entertimefrac;
+
+					rendertimefrac = entertimefrac;
+				}
+
+				R_DoThinkerLerp(rendertimefrac);
+
+				if (D_Display())
+				{
+					if (moviemode)
+						M_SaveFrame();
+					if (takescreenshot) // Only take screenshots after drawing.
+						M_DoScreenShot();
+					tic_happened = false;
+				}
+				else
+					rendertimefrac = oldrendertimefrac;
+			}
+			else
+				I_Sleep();
+
 			continue;
 		}
+		
+		tic_happened = true;
 
 #ifdef HW3SOUND
 		HW3S_BeginFrameUpdate();
@@ -704,11 +758,16 @@ void D_SRB2Loop(void)
 
 		// don't skip more than 10 frames at a time
 		// (fadein / fadeout cause massive frame skip!)
-		if (realtics > 8)
-			realtics = 1;
+		if (d_realtics > 8)
+			d_realtics = 1;
 
 		// process tics (but maybe not if realtic == 0)
-		TryRunTics(realtics);
+		if (d_realtics || singletics)
+			TryRunTics(d_realtics);
+
+		if (d_realtics)
+			if (firsttics)
+				firsttics--;
 
 		if (lastdraw || singletics || gametic > rendergametic)
 		{
@@ -716,12 +775,26 @@ void D_SRB2Loop(void)
 			rendertimeout = entertic+TICRATE/17;
 
 			// Update display, next frame, with current state.
-			D_Display();
+			if (caninterpolate && firsttics == 0)
+			{
+				rendertimefrac = I_GetTimeFrac();
+				R_DoThinkerLerp(rendertimefrac);
+			}
+			else 
+			{
+				rendertimefrac = FRACUNIT;
+				renderdeltatics = d_realtics * FRACUNIT;
+			}
 
-			if (moviemode)
-				M_SaveFrame();
-			if (takescreenshot) // Only take screenshots after drawing.
-				M_DoScreenShot();
+			if (D_Display())
+			{
+				if (moviemode)
+					M_SaveFrame();
+				if (takescreenshot) // Only take screenshots after drawing.
+					M_DoScreenShot();
+
+				tic_happened = false;
+			}
 		}
 		else if (rendertimeout < entertic) // in case the server hang or netsplit
 		{
@@ -733,12 +806,16 @@ void D_SRB2Loop(void)
 				if (camera.chase)
 					P_MoveChaseCamera(&players[displayplayer], &camera, false);
 			}
-			D_Display();
 
-			if (moviemode)
-				M_SaveFrame();
-			if (takescreenshot) // Only take screenshots after drawing.
-				M_DoScreenShot();
+			if (!caninterpolate)
+				if (D_Display())
+				{
+					if (moviemode)
+						M_SaveFrame();
+					if (takescreenshot) // Only take screenshots after drawing.
+						M_DoScreenShot();
+					tic_happened = false;
+				}
 		}
 
 		// consoleplayer -> displayplayer (hear sounds from viewpoint)
@@ -1471,6 +1548,8 @@ void D_SRB2Main(void)
 		// Do this here so if you run SRB2 with eg +timelimit 5, the time limit counts
 		// as having been modified for the first game.
 		M_PushSpecialParameters(); // push all "+" parameter at the command buffer
+
+		COM_BufExecute(); // ensure the command buffer gets executed before the map starts (+skin)
 
 		if (M_CheckParm("-gametype") && M_IsNextParm())
 		{

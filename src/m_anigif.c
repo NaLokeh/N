@@ -22,6 +22,8 @@
 #include "m_misc.h"
 #include "st_stuff.h" // st_palette
 
+#include "r_main.h" // interp
+
 #ifdef HWRENDER
 #include "hardware/hw_main.h"
 #endif
@@ -619,11 +621,22 @@ static void GIF_framewrite(void)
 		}
 		else if (gif_dynamicdelay ==(UINT8) 1)
 		{
-			float delayf = ceil(100.0f/NEWTICRATE);
+			float delayf;
+ 			
+			if (cv_gifinterpolation.value)
+			{
+				if (aproxfps >= 60)
+					delayf = ceil(100.0f/60.f);
+				else
+					delayf = ceil(100.0f/aproxfps);
+			}
+			else
+				delayf = ceil(100.0f/NEWTICRATE);
 
-			delay = (UINT16)I_PreciseToMicros((I_GetPreciseTime() - gif_prevframetime))/10/1000;
+			if (!cv_gifinterpolation.value)
+				delay = ((UINT16)I_PreciseToMicros((I_GetPreciseTime() - gif_prevframetime))/10/1000);
 
-			if (delay < (UINT16)(delayf))
+			if (delay < (UINT16)(delayf) || cv_gifinterpolation.value)
 				delay = (UINT16)(delayf);
 		}
 		else
