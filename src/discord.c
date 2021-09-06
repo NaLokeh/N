@@ -592,7 +592,8 @@ void DRPC_UpdatePresence(void)
 			"knuckles",
 			"metalsonic",
 			"fang",
-			"amy"
+			"amy",
+			NULL
 		};
 
 		boolean customChar = true;
@@ -601,18 +602,13 @@ void DRPC_UpdatePresence(void)
 
 		if (!netgame)
 		{
-			INT32 i;
-			for (i = 0; i < MAXPLAYERS; i++)
+			if (players[1].bot && !strcmp(skins[players[consoleplayer].skin].name, "sonic"))
 			{
-				if (players[i].bot && !strcmp(skins[players[consoleplayer].skin].name, "sonic"))
-				{
-						snprintf(charimg, 21, "charsonictails");
-						snprintf(charname, 28, "Characters: Sonic & Tails");
-						discordPresence.smallImageKey = charimg;
-						sonicAndTails = true;
-						customChar = false;
-						break;
-				}
+					snprintf(charimg, 21, "charsonictails");
+					snprintf(charname, 28, "Characters: Sonic & Tails");
+					discordPresence.smallImageKey = charimg;
+					sonicAndTails = true;
+					customChar = false;
 			}
 		}
 
@@ -621,7 +617,7 @@ void DRPC_UpdatePresence(void)
 			// Character image
 			while (supportedSkins[checkSkin] != NULL)
 			{
-				if (!sonicAndTails && !strcmp(skins[players[consoleplayer].skin].name, supportedSkins[checkSkin]))
+				if (!strcmp(skins[players[consoleplayer].skin].name, supportedSkins[checkSkin]))
 				{
 					snprintf(charimg, 21, "char%s", supportedSkins[checkSkin]);
 					discordPresence.smallImageKey = charimg;
@@ -639,9 +635,7 @@ void DRPC_UpdatePresence(void)
 			discordPresence.smallImageKey = "charcustom";
 		}
 
-		if (!sonicAndTails)
-			snprintf(charname, 28, "Character: %s", skins[players[consoleplayer].skin].realname);
-
+		snprintf(charname, 28, "Character: %s", skins[players[consoleplayer].skin].realname);
 		discordPresence.smallImageText = charname; // Character name
 	}
 
