@@ -267,10 +267,6 @@ typedef enum
 	sfx_bowl,
 	sfx_chuchu,
 	sfx_bsnipe,
-	sfx_join,
-	sfx_leave,
-	sfx_requst,
-	sfx_syfail,
 	sfx_sprong,
 	sfx_lvfal1,
 	sfx_pscree,
@@ -874,6 +870,12 @@ typedef enum
 	sfx_kc6c,
 	sfx_kc6d,
 	sfx_kc6e,
+
+	// discord rpc
+	sfx_join,
+	sfx_leave,
+	sfx_requst,
+	sfx_syfail,
 
 	// free slots for S_AddSoundFx() at run-time --------------------
 	sfx_freeslot0,
