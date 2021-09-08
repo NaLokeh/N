@@ -445,10 +445,7 @@ void DRPC_UpdatePresence(void)
 			// Grab the host's IP for joining.
 			if ((join = DRPC_GetServerIP()) != NULL)
 			{
-				char *xorjoin = DRPC_XORIPString(join);
-				discordPresence.joinSecret = xorjoin;
-				free(xorjoin);
-
+				discordPresence.joinSecret = DRPC_XORIPString(join);
 				joinSecretSet = true;
 			}
 			else
