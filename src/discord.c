@@ -445,10 +445,7 @@ void DRPC_UpdatePresence(void)
 			// Grab the host's IP for joining.
 			if ((join = DRPC_GetServerIP()) != NULL)
 			{
-				char *xorjoin = DRPC_XORIPString(join);
-				discordPresence.joinSecret = xorjoin;
-				free(xorjoin);
-
+				discordPresence.joinSecret = DRPC_XORIPString(join);
 				joinSecretSet = true;
 			}
 			else
@@ -530,7 +527,7 @@ void DRPC_UpdatePresence(void)
 	if ((gamestate == GS_LEVEL || gamestate == GS_INTERMISSION) // Map info
 		&& !(demoplayback && titledemo))
 	{
-		if ((gamemap >= 1 && gamemap <= 100) // Supported Co-op maps
+		if ((gamemap >= 1 && gamemap <= 73) // Supported Co-op maps
 		|| (gamemap >= 280 && gamemap <= 288) // Supported CTF maps
 		|| (gamemap >= 532 && gamemap <= 543)) // Supported Match maps
 		{
