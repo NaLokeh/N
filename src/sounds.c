@@ -218,10 +218,6 @@ sfxinfo_t S_sfx[NUMSFX] =
   {"bowl",   false,  32,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, "Bowling"},
   {"chuchu", false,  32,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, "Train horn"},
   {"bsnipe", false, 200,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, "Home-run smash"},
-  {"join",   false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Player joined server"},
-  {"leave",  false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Player left server"}, 
-  {"requst", false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Got a Discord join request"}, 
-  {"syfail", false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Funny sync failure"}, 
   {"sprong", false, 112,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, "Power spring"},
   {"lvfal1",  true,  64,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, "Rumble"},
   {"pscree", false,  64,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, "SCREE!"},
@@ -825,6 +821,12 @@ sfxinfo_t S_sfx[NUMSFX] =
   {"kc6c",   false,  64,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, ""},
   {"kc6d",   false,  64,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, ""},
   {"kc6e",   false,  64,  0, -1, NULL, 0,        -1,  -1, LUMPERROR, ""},
+
+  // discord rpc
+  {"join",   false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Player joined server"},
+  {"leave",  false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Player left server"}, 
+  {"requst", false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Got a Discord join request"}, 
+  {"syfail", false,  96,  8, -1, NULL, 0,        -1,  -1, LUMPERROR, "Funny sync failure"}, 
 
   // skin sounds free slots to add sounds at run time (Boris HACK!!!)
   // initialized to NULL
