@@ -184,19 +184,19 @@ static boolean DRPC_InvitesAreAllowed(void)
 		return false;
 	}
 
-	if (discordInfo.joinsAllowed == true)
+	/*if (discordInfo.joinsAllowed == true)
 	{
 		if (discordInfo.everyoneCanInvite == true)
-		{
+		{*/
 			// Everyone's allowed!
 			return true;
-		}
+		/*}
 		else if (consoleplayer == serverplayer || IsPlayerAdmin(consoleplayer))
 		{
 			// Only admins are allowed!
 			return true;
 		}
-	}
+	}*/
 
 	// Did not pass any of the checks
 	return false;
@@ -447,10 +447,6 @@ void DRPC_UpdatePresence(void)
 			{
 				discordPresence.joinSecret = DRPC_XORIPString(join);
 				joinSecretSet = true;
-			}
-			else
-			{
-				return;
 			}
 		}
 
