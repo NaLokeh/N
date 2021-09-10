@@ -38,7 +38,7 @@
 consvar_t cv_discordrp = CVAR_INIT ("discordrp", "On", CV_SAVE|CV_CALL, CV_OnOff, DRPC_UpdatePresence);
 consvar_t cv_discordstreamer = CVAR_INIT ("discordstreamer", "Off", CV_SAVE, CV_OnOff, NULL);
 consvar_t cv_discordasks = CVAR_INIT ("discordasks", "Yes", CV_SAVE|CV_CALL, CV_YesNo, DRPC_UpdatePresence);
-
+consvar_t cv_discordshowchar = CVAR_INIT ("discordshowchar", "Yes", CV_SAVE|CV_CALL, CV_YesNo, DRPC_UpdatePresence);
 struct discordInfo_s discordInfo;
 
 discordRequest_t *discordRequestList = NULL;
@@ -184,19 +184,19 @@ static boolean DRPC_InvitesAreAllowed(void)
 		return false;
 	}
 
-	if (discordInfo.joinsAllowed == true)
+	/*if (discordInfo.joinsAllowed == true)
 	{
 		if (discordInfo.everyoneCanInvite == true)
-		{
+		{*/
 			// Everyone's allowed!
 			return true;
-		}
+		/*}
 		else if (consoleplayer == serverplayer || IsPlayerAdmin(consoleplayer))
 		{
 			// Only admins are allowed!
 			return true;
 		}
-	}
+	}*/
 
 	// Did not pass any of the checks
 	return false;
@@ -448,10 +448,6 @@ void DRPC_UpdatePresence(void)
 				discordPresence.joinSecret = DRPC_XORIPString(join);
 				joinSecretSet = true;
 			}
-			else
-			{
-				return;
-			}
 		}
 
 		// unfortunally this only works when you are the server 
@@ -579,7 +575,7 @@ void DRPC_UpdatePresence(void)
 	}
 
 	// Character info
-	if (Playing() && playeringame[consoleplayer] && !players[consoleplayer].spectator)
+	if (cv_discordshowchar.value && Playing() && playeringame[consoleplayer] && !players[consoleplayer].spectator)
 	{
 		// Supported skin names
 		static const char *supportedSkins[] = {
