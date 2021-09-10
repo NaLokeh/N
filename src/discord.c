@@ -38,7 +38,7 @@
 consvar_t cv_discordrp = CVAR_INIT ("discordrp", "On", CV_SAVE|CV_CALL, CV_OnOff, DRPC_UpdatePresence);
 consvar_t cv_discordstreamer = CVAR_INIT ("discordstreamer", "Off", CV_SAVE, CV_OnOff, NULL);
 consvar_t cv_discordasks = CVAR_INIT ("discordasks", "Yes", CV_SAVE|CV_CALL, CV_YesNo, DRPC_UpdatePresence);
-
+consvar_t cv_discordshowchar = CVAR_INIT ("discordshowchar", "Yes", CV_SAVE|CV_CALL, CV_YesNo, DRPC_UpdatePresence);
 struct discordInfo_s discordInfo;
 
 discordRequest_t *discordRequestList = NULL;
@@ -575,7 +575,7 @@ void DRPC_UpdatePresence(void)
 	}
 
 	// Character info
-	if (Playing() && playeringame[consoleplayer] && !players[consoleplayer].spectator)
+	if (cv_discordshowchar.value && Playing() && playeringame[consoleplayer] && !players[consoleplayer].spectator)
 	{
 		// Supported skin names
 		static const char *supportedSkins[] = {

@@ -1647,6 +1647,7 @@ static menuitem_t OP_DiscordOptionsMenu[] =
 
 	{IT_STRING | IT_CVAR,		NULL, "Allow Ask To Join",		&cv_discordasks,		 60},
 	{IT_STRING | IT_CVAR,		NULL, "Allow Invites",			&cv_discordinvites,		 70},
+	{IT_STRING | IT_CVAR,		NULL, "Show Character on Status",	&cv_discordshowchar,		 80},
 };
 #endif
 static menuitem_t OP_ServerOptionsMenu[] =
@@ -2325,9 +2326,8 @@ menu_t OP_AddonsOptionsDef = DEFAULTMENUSTYLE(
 menu_t OP_EraseDataDef = DEFAULTMENUSTYLE(
 	MTREE3(MN_OP_MAIN, MN_OP_DATA, MN_OP_ERASEDATA),
 	"M_DATA", OP_EraseDataMenu, &OP_DataOptionsDef, 60, 30);
-
 #ifdef HAVE_DISCORDRPC
-menu_t OP_DiscordOptionsDef = DEFAULTMENUSTYLE(MN_DISCORD_OPT, NULL, OP_DiscordOptionsMenu, &OP_DataOptionsDef, 30, 30);
+menu_t OP_DiscordOptionsDef = DEFAULTMENUSTYLE(MTREE3(MN_OP_MAIN, MN_OP_DATA, MN_DISCORD_OPT), NULL, OP_DiscordOptionsMenu, &OP_DataOptionsDef, 30, 30);
 #endif
 
 // ==========================================================================

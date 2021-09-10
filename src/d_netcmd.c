@@ -920,6 +920,7 @@ void D_RegisterClientCommands(void)
 	CV_RegisterVar(&cv_discordrp);
 	CV_RegisterVar(&cv_discordstreamer);
 	CV_RegisterVar(&cv_discordasks);
+	CV_RegisterVar(&cv_discordshowchar);
 #endif
 }
 
