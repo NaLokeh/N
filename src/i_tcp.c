@@ -142,6 +142,7 @@
 
 #include "i_system.h"
 #include "i_net.h"
+#include "stun.h"
 #include "d_net.h"
 #include "d_netfil.h"
 #include "i_tcp.h"
