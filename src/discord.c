@@ -29,6 +29,10 @@
 #include "discord.h"
 #include "doomdef.h"
 
+#ifdef HAVE_CURL
+#include <curl/curl.h>
+#endif
+
 // Feel free to provide your own, if you care enough to create another Discord app for this :P
 #define DISCORD_APPID "875107153734680626"
 
@@ -44,6 +48,14 @@ struct discordInfo_s discordInfo;
 discordRequest_t *discordRequestList = NULL;
 
 static char self_ip[IP_SIZE+1];
+
+#ifdef HAVE_CURL 
+#define DISCORD_CHARLIST_URL "http://srb2.mooo.com/SRB2RPC/customcharlist"
+static void DRPC_GetCustomCharList(void *ptr);
+static const char *customCharList[218];
+static INT32 extraCharCount = 0;
+#endif
+static boolean customCharSupported = false;
 
 /*--------------------------------------------------
 	static char *DRPC_XORIPString(const char *input)
@@ -303,6 +315,74 @@ void DRPC_RemoveRequest(discordRequest_t *removeRequest)
 	Z_Free(removeRequest);
 }
 
+#ifdef HAVE_CURL 
+typedef struct {
+	char *memory;
+	size_t size;
+} curldata_t;
+
+static size_t WriteToArray(void *contents, size_t size, size_t nmemb, void *userdata)
+{
+	size_t realsize = size * nmemb;
+	curldata_t *mem = (curldata_t*)userdata;
+
+	char *ptr = realloc(mem->memory, mem->size + realsize + 1);
+
+	if (!ptr)
+		I_Error("Out of memory!\n");
+ 
+	mem->memory = ptr;
+	memcpy(&(mem->memory[mem->size]), contents, realsize);
+	mem->size += realsize;
+	mem->memory[mem->size] = 0;
+ 
+	return realsize;
+}
+
+static void DRPC_GetCustomCharList(void* ptr)
+{
+	CURL *curl;
+  	CURLcode cc;
+	curldata_t data;
+	char *stoken;
+
+	(void)ptr;
+	
+	data.memory = malloc(1);
+	data.size = 0;
+
+	// Download the list of latest supported custom characters
+	curl = curl_easy_init();
+	if (curl)
+	{
+		curl_easy_setopt(curl, CURLOPT_URL, DISCORD_CHARLIST_URL);
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteToArray);
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
+		cc = curl_easy_perform(curl);
+		if (cc != CURLE_OK)
+		{
+			curl_easy_cleanup(curl);
+			CONS_Printf("Discord: Could not connect to custom character server list.\n");
+			return;
+		}
+
+		curl_easy_cleanup(curl);
+  	}
+
+	stoken = strtok(data.memory, "\n");
+	while (stoken)
+	{
+		customCharList[extraCharCount] = stoken;
+		stoken = strtok(NULL, "\n");
+		extraCharCount++;
+	}
+
+	free(data.memory);
+	customCharSupported = true;
+}
+#endif
+
 /*--------------------------------------------------
 	void DRPC_Init(void)
 
@@ -311,8 +391,12 @@ void DRPC_RemoveRequest(discordRequest_t *removeRequest)
 void DRPC_Init(void)
 {
 	DiscordEventHandlers handlers;
-	memset(&handlers, 0, sizeof(handlers));
 
+#ifdef HAVE_CURL 
+	I_spawn_thread("get-custom-char-list", &DRPC_GetCustomCharList, NULL);
+#endif
+
+	memset(&handlers, 0, sizeof(handlers));
 	handlers.ready = DRPC_HandleReady;
 	handlers.disconnected = DRPC_HandleDisconnect;
 	handlers.errored = DRPC_HandleError;
@@ -624,8 +708,24 @@ void DRPC_UpdatePresence(void)
 
 		if (customChar == true)
 		{
-			// Use the custom character icon!
-			discordPresence.smallImageKey = "charcustom";
+			INT32 i;
+			boolean notfound = true;
+
+			// Custom Character image
+			if (customCharSupported)
+				for (i = 0; i < extraCharCount; i++)
+				{
+					if (!strcmp(skins[players[consoleplayer].skin].name, customCharList[i]))
+					{
+						snprintf(charimg, 21, "char%s", customCharList[i]);
+						discordPresence.smallImageKey = charimg;
+						notfound = false;
+						break;
+					}
+				}
+
+			if (notfound) // Use the custom character icon!
+				discordPresence.smallImageKey = "charcustom";
 		}
 
 		snprintf(charname, 28, "Character: %s", skins[players[consoleplayer].skin].realname);
