@@ -6717,7 +6717,7 @@ void HWR_DoPostProcessor(player_t *player)
 
 	// Capture the screen for intermission and screen waving
 	if(gamestate != GS_INTERMISSION)
-		HWD.pfnMakeScreenTexture(HWD_SCREENTEXTURE_GENERIC1);
+		HWD.pfnMakeScreenTexture();
 
 	if (splitscreen) // Not supported in splitscreen - someone want to add support?
 		return;
@@ -6760,26 +6760,26 @@ void HWR_DoPostProcessor(player_t *player)
 
 		// Capture the screen again for screen waving on the intermission
 		if(gamestate != GS_INTERMISSION)
-			HWD.pfnMakeScreenTexture(HWD_SCREENTEXTURE_GENERIC1);
+			HWD.pfnMakeScreenTexture();
 	}
 	// Flipping of the screen isn't done here anymore
 }
 
-void HWR_StartScreenWipe()
+void HWR_StartScreenWipe(void)
 {
 	//CONS_Debug(DBG_RENDER, "In HWR_StartScreenWipe()\n");
-	HWD.pfnMakeScreenTexture(HWD_SCREENTEXTURE_WIPE_START);
+	HWD.pfnStartScreenWipe();
 }
 
 void HWR_EndScreenWipe(void)
 {
 	//CONS_Debug(DBG_RENDER, "In HWR_EndScreenWipe()\n");
-	HWD.pfnMakeScreenTexture(HWD_SCREENTEXTURE_WIPE_END);
+	HWD.pfnEndScreenWipe();
 }
 
 void HWR_DrawIntermissionBG(void)
 {
-	HWD.pfnDrawScreenTexture(HWD_SCREENTEXTURE_GENERIC1);
+	HWD.pfnDrawIntermissionBG();
 }
 
 //
@@ -6824,7 +6824,7 @@ void HWR_DoWipe(UINT8 wipenum, UINT8 scrnnum)
 		return;
 
 	HWR_GetFadeMask(wipelumpnum);
-	HWD.pfnDoScreenWipe(HWD_SCREENTEXTURE_WIPE_START, HWD_SCREENTEXTURE_WIPE_END);
+	HWD.pfnDoScreenWipe();
 }
 
 void HWR_DoTintedWipe(UINT8 wipenum, UINT8 scrnnum)
@@ -6835,14 +6835,12 @@ void HWR_DoTintedWipe(UINT8 wipenum, UINT8 scrnnum)
 
 void HWR_MakeScreenFinalTexture(void)
 {
-	int tex = HWR_ShouldUsePaletteRendering() ? HWD_SCREENTEXTURE_GENERIC3 : HWD_SCREENTEXTURE_GENERIC2;
-	HWD.pfnMakeScreenTexture(tex);
+    HWD.pfnMakeScreenFinalTexture();
 }
 
 void HWR_DrawScreenFinalTexture(int width, int height)
 {
-	int tex = HWR_ShouldUsePaletteRendering() ? HWD_SCREENTEXTURE_GENERIC3 : HWD_SCREENTEXTURE_GENERIC2;
-	HWD.pfnDrawScreenFinalTexture(tex, width, height);
+    HWD.pfnDrawScreenFinalTexture(width, height);
 }
 
 #endif // HWRENDER

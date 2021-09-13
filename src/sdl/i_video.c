@@ -1266,10 +1266,11 @@ void I_FinishUpdate(void)
 		// Final postprocess step of palette rendering, after everything else has been drawn.
 		if (HWR_ShouldUsePaletteRendering())
 		{
-			HWD.pfnMakeScreenTexture(HWD_SCREENTEXTURE_GENERIC2);
+			// not using the function for its original named purpose but can be used like this too
+			HWR_MakeScreenFinalTexture();
 			HWD.pfnSetSpecialState(HWD_SET_SHADERS, 1);
 			HWD.pfnSetShader(HWR_GetShaderFromTarget(SHADER_PALETTE_POSTPROCESS));
-			HWD.pfnDrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2);
+			HWR_DrawScreenFinalTexture(vid.width, vid.height);
 			HWD.pfnUnSetShader();
 			HWD.pfnSetSpecialState(HWD_SET_SHADERS, 0);
 		}
@@ -1933,10 +1934,12 @@ void VID_StartupOpenGL(void)
 		HWD.pfnSetTransform     = hwSym("SetTransform",NULL);
 		HWD.pfnPostImgRedraw    = hwSym("PostImgRedraw",NULL);
 		HWD.pfnFlushScreenTextures=hwSym("FlushScreenTextures",NULL);
-		HWD.pfnSwapScreenTextures=hwSym("SwapScreenTextures",NULL);
+		HWD.pfnStartScreenWipe  = hwSym("StartScreenWipe",NULL);
+		HWD.pfnEndScreenWipe    = hwSym("EndScreenWipe",NULL);
 		HWD.pfnDoScreenWipe     = hwSym("DoScreenWipe",NULL);
-		HWD.pfnDrawScreenTexture= hwSym("DrawScreenTexture",NULL);
+		HWD.pfnDrawIntermissionBG=hwSym("DrawIntermissionBG",NULL);
 		HWD.pfnMakeScreenTexture= hwSym("MakeScreenTexture",NULL);
+		HWD.pfnMakeScreenFinalTexture=hwSym("MakeScreenFinalTexture",NULL);
 		HWD.pfnDrawScreenFinalTexture=hwSym("DrawScreenFinalTexture",NULL);
 
 		HWD.pfnInitShaders      = hwSym("InitShaders",NULL);
