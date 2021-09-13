@@ -596,11 +596,13 @@ static int lib_pSpawnMobj(lua_State *L)
 	fixed_t y = luaL_checkfixed(L, 2);
 	fixed_t z = luaL_checkfixed(L, 3);
 	mobjtype_t type = luaL_checkinteger(L, 4);
+	mobj_t *mo = P_SpawnMobj(x, y, z, type);
+	mo->lua_shouldinterp = true;
 	NOHUD
 	INLEVEL
 	if (type >= NUMMOBJTYPES)
 		return luaL_error(L, "mobj type %d out of range (0 - %d)", type, NUMMOBJTYPES-1);
-	LUA_PushUserdata(L, P_SpawnMobj(x, y, z, type), META_MOBJ);
+	LUA_PushUserdata(L, mo, META_MOBJ);
 	return 1;
 }
 

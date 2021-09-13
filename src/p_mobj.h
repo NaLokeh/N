@@ -398,6 +398,7 @@ typedef struct mobj_s
 	fixed_t shadowscale; // If this object casts a shadow, and the size relative to radius
 
 	// WARNING: New fields must be added separately to savegame and Lua.
+	boolean lua_shouldinterp;
 } mobj_t;
 
 //

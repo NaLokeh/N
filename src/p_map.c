@@ -76,9 +76,13 @@ camera_t *mapcampointer;
 //
 boolean P_TeleportMove(mobj_t *thing, fixed_t x, fixed_t y, fixed_t z)
 {
-	thing->old_x = thing->x;
-	thing->old_y = thing->y;
-	thing->old_z = thing->z;
+	if (thing->player)
+	{
+		thing->old_x = thing->x;
+		thing->old_y = thing->y;
+		thing->old_z = thing->z;
+	}
+	thing->lua_shouldinterp = 0;
 
 	// the move is ok,
 	// so link the thing into its new position
@@ -99,9 +103,12 @@ boolean P_TeleportMove(mobj_t *thing, fixed_t x, fixed_t y, fixed_t z)
 
 	P_CheckPosition(thing, thing->x, thing->y);
 
-	thing->new_x = x;
-	thing->new_y = y;
-	thing->new_z = z;
+	if (thing->player)
+	{
+		thing->new_x = x;
+		thing->new_y = y;
+		thing->new_z = z;
+	}
 
 	if (P_MobjWasRemoved(thing))
 		return true;

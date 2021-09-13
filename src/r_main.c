@@ -175,6 +175,7 @@ consvar_t cv_frameinterpolation = CVAR_INIT ("frameinterpolation", "On, capped",
 static CV_PossibleValue_t frameratecap_cons_t[] = {{24, "MIN"}, {1000, "MAX"}, {0, NULL}};
 consvar_t cv_frameratecap = CVAR_INIT ("frameratecap", "100", CV_SAVE, frameratecap_cons_t, NULL);
 consvar_t cv_interpmovingplatforms = CVAR_INIT ("interpmovingplatforms", "Yes", CV_SAVE, CV_YesNo, NULL);
+consvar_t cv_interpluaobjects = CVAR_INIT ("interpluaobjects", "Yes", CV_SAVE, CV_YesNo, NULL);
 consvar_t cv_gifinterpolation = CVAR_INIT ("gif_interp", "Off", CV_SAVE, CV_OnOff, NULL);
 
 // Okay, whoever said homremoval causes a performance hit should be shot.
@@ -1675,5 +1676,6 @@ void R_RegisterEngineStuff(void)
 	CV_RegisterVar(&cv_frameinterpolation);
 	CV_RegisterVar(&cv_frameratecap);
 	CV_RegisterVar(&cv_interpmovingplatforms);
+	CV_RegisterVar(&cv_interpluaobjects);
 	CV_RegisterVar(&cv_gifinterpolation);
 }

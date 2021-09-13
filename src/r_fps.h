@@ -58,6 +58,7 @@ void R_ResetThinkerLerp(void);
 void R_StashThinkerLerp(void);
 void R_RestoreThinkerLerp(void);
 void R_ResetFirstLerp(void);
+void R_DoLuaThinkerLerp(void);
 fixed_t R_LerpFixed(fixed_t from, fixed_t to, fixed_t frac);
 INT32 R_LerpInt32(INT32 from, INT32 to, fixed_t frac);
 UINT32 R_LerpUInt32(UINT32 from, UINT32 to, fixed_t frac);

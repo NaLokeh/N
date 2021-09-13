@@ -13880,6 +13880,15 @@ mobj_t *P_SpawnMobjFromMobj(mobj_t *mobj, fixed_t xofs, fixed_t yofs, fixed_t zo
 		newmobj->flags2 |= MF2_OBJECTFLIP;
 		newmobj->z = mobj->z + mobj->height - zofs - elementheight;
 	}
+	
+	// interpolation
+	newmobj->firstlerp = mobj->firstlerp;
+	newmobj->old_x = mobj->old_x;
+	newmobj->old_y = mobj->old_y;
+	newmobj->old_z = mobj->old_z;
+	newmobj->new_x = newmobj->x;
+	newmobj->new_y = newmobj->y;
+	newmobj->new_z = newmobj->z;
 
 	newmobj->destscale = mobj->destscale;
 	P_SetScale(newmobj, mobj->scale);

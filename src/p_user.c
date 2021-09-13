@@ -2025,6 +2025,15 @@ mobj_t *P_SpawnGhostMobj(mobj_t *mobj)
 		ghost->z += mobj->height - ghost->height;
 	}
 
+	// interpolation
+	ghost->firstlerp = mobj->firstlerp;
+	ghost->old_x = mobj->old_x;
+	ghost->old_y = mobj->old_y;
+	ghost->old_z = mobj->old_z;
+	ghost->new_x = mobj->x;
+	ghost->new_y = mobj->y;
+	ghost->new_z = mobj->z;
+
 	ghost->color = mobj->color;
 	ghost->colorized = mobj->colorized; // alternatively, "true" for sonic advance style colourisation
 
@@ -2149,6 +2158,14 @@ void P_SpawnSpinMobj(player_t *player, mobjtype_t type)
 			zheight = player->mo->ceilingz - FixedMul(mobjinfo[type].height, player->mo->scale);
 
 		mobj = P_SpawnMobj(player->mo->x, player->mo->y, zheight, type);
+		// interpolation
+		mobj->firstlerp = player->mo->firstlerp;
+		mobj->old_x = player->mo->old_x;
+		mobj->old_y = player->mo->old_y;
+		mobj->old_z = player->mo->old_z;
+		mobj->new_x = player->mo->x;
+		mobj->new_y = player->mo->y;
+		mobj->new_z = player->mo->z;
 
 		// set to player's angle, just in case
 		mobj->angle = player->drawangle;

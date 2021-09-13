@@ -1422,7 +1422,8 @@ static menuitem_t OP_VideoOptionsMenu[] =
 	{IT_HEADER, NULL, "Uncapped", NULL, 222},
 	{IT_STRING | IT_CVAR, NULL, "Frame Interpolation",       &cv_frameinterpolation, 228},
 	{IT_STRING | IT_CVAR, NULL, "Frame Rate Cap",       	 &cv_frameratecap, 233},
-	{IT_STRING | IT_CVAR, NULL, "Interp... moving platforms",&cv_interpmovingplatforms, 238}
+	{IT_STRING | IT_CVAR, NULL, "Interp... moving platforms",&cv_interpmovingplatforms, 238},
+	{IT_STRING | IT_CVAR, NULL, "Interp... Lua Objects",	 &cv_interpluaobjects, 243},
 };
 
 static menuitem_t OP_VideoModeMenu[] =

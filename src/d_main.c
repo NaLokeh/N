@@ -782,7 +782,7 @@ void D_SRB2Loop(void)
 			if (caninterpolate && firsttics == 0)
 			{
 				rendertimefrac = I_GetTimeFrac();
-				R_DoThinkerLerp(rendertimefrac);
+				//R_DoThinkerLerp(rendertimefrac);
 			}
 			else 
 			{
@@ -790,15 +790,16 @@ void D_SRB2Loop(void)
 				renderdeltatics = d_realtics * FRACUNIT;
 			}
 
-			if (D_Display())
-			{
-				if (moviemode)
-					M_SaveFrame();
-				if (takescreenshot) // Only take screenshots after drawing.
-					M_DoScreenShot();
+			if (!caninterpolate || firsttics)
+				if (D_Display())
+				{
+					if (moviemode)
+						M_SaveFrame();
+					if (takescreenshot) // Only take screenshots after drawing.
+						M_DoScreenShot();
 
-				tic_happened = false;
-			}
+					tic_happened = false;
+				}
 		}
 		else if (rendertimeout < entertic) // in case the server hang or netsplit
 		{
@@ -821,6 +822,7 @@ void D_SRB2Loop(void)
 					tic_happened = false;
 				}
 		}
+#undef caninterpolate
 
 		// consoleplayer -> displayplayer (hear sounds from viewpoint)
 		S_UpdateSounds(); // move positional sounds

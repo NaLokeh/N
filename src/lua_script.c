@@ -26,6 +26,7 @@
 #include "p_local.h"
 #include "p_slopes.h" // for P_SlopeById
 #include "p_polyobj.h" // polyobj_t, PolyObjects
+#include "r_fps.h"
 #ifdef LUA_ALLOW_BYTECODE
 #include "d_netfil.h" // for LUA_DumpFile
 #endif
@@ -1600,6 +1601,7 @@ void LUA_Step(void)
 {
 	if (!gL)
 		return;
+	R_DoLuaThinkerLerp();
 	lua_settop(gL, 0);
 	lua_gc(gL, LUA_GCSTEP, 1);
 }

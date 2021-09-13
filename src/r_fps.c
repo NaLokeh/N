@@ -14,6 +14,7 @@
 
 #include "r_fps.h"
 
+#include "info.h"
 #include "p_local.h"
 #include "p_polyobj.h"
 #include "r_main.h"
@@ -195,16 +196,15 @@ fixed_t R_GetShadowZ(mobj_t *thing, pslope_t **shadowslope)
 		}
 	}
 
-	if (tic_happened) // prevent resynchs i guess
-		if (!groundslope && !groundz)
+	if (!groundslope && !groundz)
+	{
+		if (isflipped ? (thing->ceilingz < groundz - (!groundslope ? 0 : FixedMul(abs(groundslope->zdelta), thing->radius*3/2)))
+			: (thing->floorz > groundz + (!groundslope ? 0 : FixedMul(abs(groundslope->zdelta), thing->radius*3/2))))
 		{
-			if (isflipped ? (thing->ceilingz < groundz - (!groundslope ? 0 : FixedMul(abs(groundslope->zdelta), thing->radius*3/2)))
-				: (thing->floorz > groundz + (!groundslope ? 0 : FixedMul(abs(groundslope->zdelta), thing->radius*3/2))))
-			{
-				groundz = isflipped ? thing->ceilingz : thing->floorz;
-				groundslope = NULL;
-			}
+			groundz = isflipped ? thing->ceilingz : thing->floorz;
+			groundslope = NULL;
 		}
+	}
 
 #if 0 // Unfortunately, this drops CEZ2 down to sub-17 FPS on my i7.
 	// NOTE: this section was not updated to reflect reverse gravity support
@@ -1646,6 +1646,28 @@ void R_RestoreThinkerLerp(void)
 			mo->x = mo->lerp_x;
 			mo->y = mo->lerp_y;
 			mo->z = mo->lerp_z;
+		}
+	}
+}
+
+void R_DoLuaThinkerLerp(void)
+{
+	thinker_t *th;
+
+	if (!cv_frameinterpolation.value || !cv_interpluaobjects.value)
+		return;
+
+	for (th = thlist[THINK_MOBJ].next; th != &thlist[THINK_MOBJ]; th = th->next)
+	{
+		if (!th)
+			break;
+		CAST(mo, mobj_t);
+		if (mo->lua_shouldinterp && !mo->player && viewplayer->mo)
+		{
+			mo->firstlerp = 1;
+			mo->old_x += FixedMul(viewplayer->mo->new_x - viewplayer->mo->old_x, rendertimefrac - FRACUNIT);
+			mo->old_y += FixedMul(viewplayer->mo->new_y - viewplayer->mo->old_y, rendertimefrac - FRACUNIT);
+			mo->old_z += FixedMul(viewplayer->mo->new_z - viewplayer->mo->old_z, rendertimefrac - FRACUNIT);
 		}
 	}
 }

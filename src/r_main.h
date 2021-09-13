@@ -124,6 +124,7 @@ extern consvar_t cv_frameinterpolation;
 extern consvar_t cv_frameratecap;
 extern consvar_t cv_interpmovingplatforms;
 extern consvar_t cv_gifinterpolation;
+extern consvar_t cv_interpluaobjects;
 
 // Called by startup code.
 void R_Init(void);
