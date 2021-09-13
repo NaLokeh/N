@@ -2186,8 +2186,8 @@ fixed_t I_GetTimeFrac(void) {
 
 UINT16 I_GetFrameReference(UINT16 fps)
 {
-	int ticks = (int)(I_GetPreciseTime() / (timer_frequency / 1000.0));
-	return (ticks % 1000) * fps / 1000;
+    UINT64 ticks = I_GetPreciseTime() / (UINT64)(timer_frequency / 1000.0);
+    return (ticks % 1000) * fps / 1000;
 }
 
 //
