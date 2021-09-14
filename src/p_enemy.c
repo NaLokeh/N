@@ -551,6 +551,7 @@ boolean P_Move(mobj_t *actor, fixed_t speed)
 	else
 		actor->flags2 &= ~MF2_INFLOAT;
 
+	actor->lua_shouldinterp = false; 
 	return true;
 }
 

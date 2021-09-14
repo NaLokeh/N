@@ -2880,6 +2880,8 @@ boolean P_TryMove(mobj_t *thing, fixed_t x, fixed_t y, boolean allowdropoff)
 	else
 		thing->eflags |= MFE_ONGROUND;
 
+	thing->lua_shouldinterp = false; 
+
 	P_SetThingPosition(thing);
 	return true;
 }

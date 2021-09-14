@@ -373,7 +373,7 @@ static void DRPC_GetCustomCharList(void* ptr)
 	stoken = strtok(data.memory, "\n");
 	while (stoken)
 	{
-		customCharList[extraCharCount] = stoken;
+		customCharList[extraCharCount] = strdup(stoken);
 		stoken = strtok(NULL, "\n");
 		extraCharCount++;
 	}

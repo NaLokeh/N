@@ -1662,7 +1662,7 @@ void R_DoLuaThinkerLerp(void)
 		if (!th)
 			break;
 		CAST(mo, mobj_t);
-		if (mo->lua_shouldinterp && !mo->player && viewplayer->mo)
+		if (mo->lua_shouldinterp && !mo->target && !mo->player && viewplayer->mo)
 		{
 			mo->firstlerp = 1;
 			mo->old_x += FixedMul(viewplayer->mo->new_x - viewplayer->mo->old_x, rendertimefrac - FRACUNIT);
