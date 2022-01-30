@@ -1469,7 +1469,6 @@ EXPORT void HWRAPI(SetBlend) (FBITFIELD PolyFlags)
 			else
 				pglDepthMask(0);
 		}
-		////Hurdler: not used if we don't define POLYSKY
 		if (Xor & PF_Invisible)
 		{
 			if (PolyFlags&PF_Invisible)
