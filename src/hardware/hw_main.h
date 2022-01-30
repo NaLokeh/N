@@ -106,10 +106,14 @@ extern float gl_viewwidth, gl_viewheight, gl_baseviewwindowy;
 
 extern float gl_viewwindowx, gl_basewindowcentery;
 
+extern sector_t *gl_frontsector;
+extern sector_t *gl_backsector;
+
 // BP: big hack for a test in lighting ref : 1249753487AB
 extern fixed_t *hwbbox;
 extern FTransform atransform;
 
+extern fixed_t dup_viewx, dup_viewy, dup_viewz;
 extern angle_t dup_viewangle;
 
 extern float gl_viewx, gl_viewy, gl_viewz;

@@ -142,6 +142,14 @@ extern INT32 patchformat;
 extern INT32 textureformat;
 
 // --------
+// hw_plane.c
+// --------
+void HWR_RenderPlane(subsector_t *subsector, extrasubsector_t *xsub, boolean isceiling, fixed_t fixedheight, FBITFIELD PolyFlags, INT32 lightlevel, levelflat_t *levelflat, sector_t *FOFsector, UINT8 alpha, extracolormap_t *planecolormap);
+void HWR_RenderPolyObjectPlane(polyobj_t *polysector, boolean isceiling, fixed_t fixedheight,
+								FBITFIELD blendmode, UINT8 lightlevel, levelflat_t *levelflat, sector_t *FOFsector,
+								UINT8 alpha, extracolormap_t *planecolormap);
+
+// --------
 // hw_shaders.c
 // --------
 boolean HWR_InitShaders(void);
