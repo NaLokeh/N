@@ -397,6 +397,7 @@
     <ClCompile Include="..\hardware\hw_model.c" />
     <ClCompile Include="..\hardware\hw_shaders.c" />
     <ClCompile Include="..\hardware\hw_sky.c" />
+    <ClCompile Include="..\hardware\hw_things.c" />
     <ClCompile Include="..\hardware\r_opengl\r_opengl.c" />
     <ClCompile Include="..\hardware\u_list.c" />
     <ClCompile Include="..\hu_stuff.c" />
