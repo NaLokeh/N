@@ -42,9 +42,6 @@
 #include "hw_md2.h"
 #include "hw_clip.h"
 
-#define R_FAKEFLOORS
-#define HWPRECIP
-
 // ==========================================================================
 // the hardware driver object
 // ==========================================================================
@@ -57,9 +54,7 @@ struct hwdriver_s hwdriver;
 
 static void HWR_AddSprites(sector_t *sec);
 static void HWR_ProjectSprite(mobj_t *thing);
-#ifdef HWPRECIP
 static void HWR_ProjectPrecipitationSprite(precipmobj_t *thing);
-#endif
 
 void HWR_AddTransparentFloor(levelflat_t *levelflat, extrasubsector_t *xsub, boolean isceiling, fixed_t fixedheight, INT32 lightlevel, INT32 alpha, sector_t *FOFSector, FBITFIELD blend, boolean fogplane, extracolormap_t *planecolormap);
 void HWR_AddTransparentPolyobjectFloor(levelflat_t *levelflat, polyobj_t *polysector, boolean isceiling, fixed_t fixedheight,
@@ -90,13 +85,6 @@ static angle_t gl_xtoviewangle[MAXVIDWIDTH+1];
 // ==========================================================================
 //                                                                    GLOBALS
 // ==========================================================================
-
-// uncomment to remove the plane rendering
-#define DOPLANES
-//#define DOWALLS
-
-// test change fov when looking up/down but bsp projection messup :(
-//#define NOCRAPPYMLOOK
 
 // base values set at SetViewSize
 static float gl_basecentery;
@@ -374,8 +362,6 @@ static FUINT HWR_CalcSlopeLight(FUINT lightnum, angle_t dir, fixed_t delta)
 // ==========================================================================
 //                                   FLOOR/CEILING GENERATION FROM SUBSECTORS
 // ==========================================================================
-
-#ifdef DOPLANES
 
 // -----------------+
 // HWR_RenderPlane  : Render a floor or ceiling convex polygon
@@ -680,8 +666,6 @@ static void HWR_RenderPlane(subsector_t *subsector, extrasubsector_t *xsub, bool
 	HWR_PlaneLighting(planeVerts, nrPlaneVerts);
 #endif
 }
-
-#endif //doplanes
 
 FBITFIELD HWR_GetBlendModeFlag(INT32 style)
 {
@@ -2485,7 +2469,6 @@ static void HWR_Subsector(size_t num)
 	sub->sector->extra_colormap = gl_frontsector->extra_colormap;
 
 	// render floor ?
-#ifdef DOPLANES
 	// yeah, easy backface cull! :)
 	if (cullFloorHeight < dup_viewz)
 	{
@@ -2523,7 +2506,6 @@ static void HWR_Subsector(size_t num)
 	if (gl_frontsector->ceilingpic == skyflatnum || gl_frontsector->floorpic == skyflatnum)
 		drawsky = true;
 
-#ifdef R_FAKEFLOORS
 	if (gl_frontsector->ffloors)
 	{
 		/// \todo fix light, xoffs, yoffs, extracolormap ?
@@ -2631,8 +2613,6 @@ static void HWR_Subsector(size_t num)
 			}
 		}
 	}
-#endif
-#endif //doplanes
 
 	// Draw all the polyobjects in this subsector
 	if (sub->polyList)
@@ -2698,27 +2678,6 @@ static void HWR_Subsector(size_t num)
 // Renders all subsectors below a given node,
 //  traversing subtree recursively.
 // Just call with BSP root.
-
-#ifdef coolhack
-//t;b;l;r
-static fixed_t hackbbox[4];
-//BOXTOP,
-//BOXBOTTOM,
-//BOXLEFT,
-//BOXRIGHT
-static boolean HWR_CheckHackBBox(fixed_t *bb)
-{
-	if (bb[BOXTOP] < hackbbox[BOXBOTTOM]) //y up
-		return false;
-	if (bb[BOXBOTTOM] > hackbbox[BOXTOP])
-		return false;
-	if (bb[BOXLEFT] > hackbbox[BOXRIGHT])
-		return false;
-	if (bb[BOXRIGHT] < hackbbox[BOXLEFT])
-		return false;
-	return true;
-}
-#endif
 
 // BP: big hack for a test in lighning ref : 1249753487AB
 fixed_t *hwbbox;
@@ -3769,7 +3728,6 @@ static void HWR_DrawSprite(gl_vissprite_t *spr)
 	}
 }
 
-#ifdef HWPRECIP
 // Sprite drawer for precipitation
 static inline void HWR_DrawPrecipitationSprite(gl_vissprite_t *spr)
 {
@@ -3870,7 +3828,6 @@ static inline void HWR_DrawPrecipitationSprite(gl_vissprite_t *spr)
 
 	HWR_ProcessPolygon(&Surf, wallVerts, 4, blend|PF_Modulated, shader, false);
 }
-#endif
 
 // --------------------------------------------------------------------------
 // Sort vissprites by distance
@@ -4267,11 +4224,9 @@ static void HWR_DrawSprites(void)
 	for (i = 0; i < gl_visspritecount; i++)
 	{
 		gl_vissprite_t *spr = gl_vsprorder[i];
-#ifdef HWPRECIP
 		if (spr->precip)
 			HWR_DrawPrecipitationSprite(spr);
 		else
-#endif
 		{
 			if (spr->mobj && spr->mobj->shadowscale && cv_shadow.value && !skipshadow)
 			{
@@ -4342,9 +4297,7 @@ static UINT8 sectorlight;
 static void HWR_AddSprites(sector_t *sec)
 {
 	mobj_t *thing;
-#ifdef HWPRECIP
 	precipmobj_t *precipthing;
-#endif
 	fixed_t limit_dist, hoop_limit_dist;
 
 	// BSP is traversed by subsector.
@@ -4370,7 +4323,6 @@ static void HWR_AddSprites(sector_t *sec)
 			HWR_ProjectSprite(thing);
 	}
 
-#ifdef HWPRECIP
 	// no, no infinite draw distance for precipitation. this option at zero is supposed to turn it off
 	if ((limit_dist = (fixed_t)cv_drawdist_precip.value << FRACBITS))
 	{
@@ -4380,7 +4332,6 @@ static void HWR_AddSprites(sector_t *sec)
 				HWR_ProjectPrecipitationSprite(precipthing);
 		}
 	}
-#endif
 }
 
 // --------------------------------------------------------------------------
@@ -4817,7 +4768,6 @@ static void HWR_ProjectSprite(mobj_t *thing)
 	vis->precip = false;
 }
 
-#ifdef HWPRECIP
 // Precipitation projector for hardware mode
 static void HWR_ProjectPrecipitationSprite(precipmobj_t *thing)
 {
@@ -4929,7 +4879,6 @@ static void HWR_ProjectPrecipitationSprite(precipmobj_t *thing)
 		thing->precipflags |= PCF_THUNK;
 	}
 }
-#endif
 
 // ==========================================================================
 // Sky dome rendering, ported from PrBoom+
