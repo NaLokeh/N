@@ -716,6 +716,9 @@
     <ClCompile Include="..\hardware\hw_shaders.c">
       <Filter>Hw_Hardware</Filter>
     </ClCompile>
+    <ClCompile Include="..\hardware\hw_sky.c">
+      <Filter>Hw_Hardware</Filter>
+    </ClCompile>
     <ClCompile Include="..\hardware\u_list.c">
       <Filter>Hw_Hardware</Filter>
     </ClCompile>

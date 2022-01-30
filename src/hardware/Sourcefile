@@ -11,4 +11,5 @@ hw_model.c
 u_list.c
 hw_batching.c
 hw_shaders.c
+hw_sky.c
 r_opengl/r_opengl.c
