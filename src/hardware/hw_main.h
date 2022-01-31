@@ -22,27 +22,31 @@
 
 #include "../m_perfstats.h"
 
-// Startup & Shutdown the hardware mode renderer
-void HWR_Startup(void);
-void HWR_Switch(void);
-void HWR_Shutdown(void);
+// --------
+// hw_bsp.c
+// --------
+void HWR_CreatePlanePolygons(INT32 bspnum);
 
+// --------
+// hw_cache.c
+// --------
+void HWR_MakePatch(const patch_t *patch, GLPatch_t *grPatch, GLMipmap_t *grMipmap, boolean makebitmap);
+
+// --------
+// hw_draw.c
+// --------
 void HWR_drawAMline(const fline_t *fl, INT32 color);
 void HWR_FadeScreenMenuBack(UINT16 color, UINT8 strength);
 void HWR_DrawConsoleBack(UINT32 color, INT32 height);
 void HWR_DrawTutorialBack(UINT32 color, INT32 boxheight);
-void HWR_RenderSkyboxView(INT32 viewnumber, player_t *player);
-void HWR_RenderPlayerView(INT32 viewnumber, player_t *player);
+
 void HWR_DrawViewBorder(INT32 clearlines);
 void HWR_DrawFlatFill(INT32 x, INT32 y, INT32 w, INT32 h, lumpnum_t flatlumpnum);
-void HWR_SetViewSize(void);
-void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox);
+
 void HWR_DrawPatch(patch_t *gpatch, INT32 x, INT32 y, INT32 option);
 void HWR_DrawStretchyFixedPatch(patch_t *gpatch, fixed_t x, fixed_t y, fixed_t pscale, fixed_t vscale, INT32 option, const UINT8 *colormap);
 void HWR_DrawCroppedPatch(patch_t *gpatch, fixed_t x, fixed_t y, fixed_t pscale, fixed_t vscale, INT32 option, const UINT8 *colormap, fixed_t sx, fixed_t sy, fixed_t w, fixed_t h);
-void HWR_MakePatch(const patch_t *patch, GLPatch_t *grPatch, GLMipmap_t *grMipmap, boolean makebitmap);
-void HWR_CreatePlanePolygons(INT32 bspnum);
-void HWR_CreateStaticLightmaps(INT32 bspnum);
+
 void HWR_DrawFill(INT32 x, INT32 y, INT32 w, INT32 h, INT32 color);
 void HWR_DrawFadeFill(INT32 x, INT32 y, INT32 w, INT32 h, INT32 color, UINT16 actualcolor, UINT8 strength);
 void HWR_DrawConsoleFill(INT32 x, INT32 y, INT32 w, INT32 h, INT32 color, UINT32 actualcolor);	// Lat: separate flags from color since color needs to be an uint to work right.
@@ -50,6 +54,24 @@ void HWR_DrawPic(INT32 x,INT32 y,lumpnum_t lumpnum);
 
 UINT8 *HWR_GetScreenshot(void);
 boolean HWR_Screenshot(const char *pathname);
+
+// --------
+// hw_light.c
+// --------
+void HWR_CreateStaticLightmaps(INT32 bspnum);
+
+// --------
+// hw_main.c
+// --------
+void HWR_Startup(void);
+void HWR_Switch(void);
+void HWR_Shutdown(void);
+
+void HWR_RenderSkyboxView(INT32 viewnumber, player_t *player);
+void HWR_RenderPlayerView(INT32 viewnumber, player_t *player);
+
+void HWR_SetViewSize(void);
+void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox);
 
 void HWR_AddCommands(void);
 void HWR_AddSessionCommands(void);
