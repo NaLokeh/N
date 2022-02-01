@@ -1,14 +1,14 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2021 by Sonic Team Junior.
+// Copyright (C) 1999-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
 // See the 'LICENSE' file for more details.
 //-----------------------------------------------------------------------------
 /// \file hw_main.c
-/// \brief hardware renderer, using the standard HardWareRender driver DLL for SRB2
+/// \brief hardware renderer, using the standard HardWareRender driver for SRB2
 
 #include <math.h>
 
