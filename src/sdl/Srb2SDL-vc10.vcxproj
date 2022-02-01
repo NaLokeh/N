@@ -385,12 +385,12 @@
     <ClCompile Include="..\g_input.c" />
     <ClCompile Include="..\hardware\hw3sound.c" />
     <ClCompile Include="..\hardware\hw_batching.c" />
-    <ClCompile Include="..\hardware\hw_bsp.c" />
     <ClCompile Include="..\hardware\hw_cache.c" />
     <ClCompile Include="..\hardware\hw_clip.c" />
     <ClCompile Include="..\hardware\hw_draw.c" />
     <ClCompile Include="..\hardware\hw_light.c" />
     <ClCompile Include="..\hardware\hw_main.c" />
+    <ClCompile Include="..\hardware\hw_map.c" />
     <ClCompile Include="..\hardware\hw_md2.c" />
     <ClCompile Include="..\hardware\hw_md2load.c" />
     <ClCompile Include="..\hardware\hw_md3load.c" />

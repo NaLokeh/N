@@ -91,17 +91,6 @@ typedef struct gl_vissprite_s
 } gl_vissprite_t;
 
 // --------
-// hw_bsp.c
-// --------
-extern extrasubsector_t *extrasubsectors;
-extern size_t addsubsector;
-
-void HWR_InitPolyPool(void);
-void HWR_FreePolyPool(void);
-
-void HWR_FreeExtraSubsectors(void);
-
-// --------
 // hw_cache.c
 // --------
 RGBA_t *HWR_GetTexturePalette(void);
@@ -150,6 +139,17 @@ void HWR_AddTransparentPolyobjectFloor(levelflat_t *levelflat, polyobj_t *polyse
                              INT32 lightlevel, INT32 alpha, sector_t *FOFSector, FBITFIELD blend, extracolormap_t *planecolormap);
 void HWR_CreateDrawNodes(void);
 extern INT32 drawcount;
+
+// --------
+// hw_map.c
+// --------
+extern extrasubsector_t *extrasubsectors;
+extern size_t addsubsector;
+
+void HWR_InitPolyPool(void);
+void HWR_FreePolyPool(void);
+
+void HWR_FreeExtraSubsectors(void);
 
 // --------
 // hw_plane.c

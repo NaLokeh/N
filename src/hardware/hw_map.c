@@ -6,7 +6,7 @@
 // terms of the GNU General Public License, version 2.
 // See the 'LICENSE' file for more details.
 //-----------------------------------------------------------------------------
-/// \file hw_bsp.c
+/// \file hw_map.c
 /// \brief convert SRB2 map
 
 #include "../doomdef.h"

@@ -23,11 +23,6 @@
 #include "../m_perfstats.h"
 
 // --------
-// hw_bsp.c
-// --------
-void HWR_CreatePlanePolygons(INT32 bspnum);
-
-// --------
 // hw_cache.c
 // --------
 void HWR_MakePatch(const patch_t *patch, GLPatch_t *grPatch, GLMipmap_t *grMipmap, boolean makebitmap);
@@ -59,6 +54,11 @@ boolean HWR_Screenshot(const char *pathname);
 // hw_light.c
 // --------
 void HWR_CreateStaticLightmaps(INT32 bspnum);
+
+// --------
+// hw_map.c
+// --------
+void HWR_CreatePlanePolygons(INT32 bspnum);
 
 // --------
 // hw_main.c
