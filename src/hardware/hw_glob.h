@@ -91,6 +91,12 @@ typedef struct gl_vissprite_s
 } gl_vissprite_t;
 
 // --------
+// hw_bsp.c
+// --------
+void HWR_RenderBSPNode(INT32 bspnum);
+extern boolean drawsky;
+
+// --------
 // hw_cache.c
 // --------
 RGBA_t *HWR_GetTexturePalette(void);

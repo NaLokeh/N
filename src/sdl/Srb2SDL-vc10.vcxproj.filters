@@ -683,6 +683,9 @@
     <ClCompile Include="..\hardware\hw_batching.c">
       <Filter>Hw_Hardware</Filter>
     </ClCompile>
+    <ClCompile Include="..\hardware\hw_bsp.c">
+      <Filter>Hw_Hardware</Filter>
+    </ClCompile>
     <ClCompile Include="..\hardware\hw_cache.c">
       <Filter>Hw_Hardware</Filter>
     </ClCompile>

@@ -10,6 +10,7 @@ hw_md3load.c
 hw_model.c
 u_list.c
 hw_batching.c
+hw_bsp.c
 hw_drawnodes.c
 hw_plane.c
 hw_segs.c
