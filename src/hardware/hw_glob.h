@@ -150,6 +150,12 @@ void HWR_RenderPolyObjectPlane(polyobj_t *polysector, boolean isceiling, fixed_t
 								UINT8 alpha, extracolormap_t *planecolormap);
 
 // --------
+// hw_segs.c
+// --------
+void HWR_ProcessSeg(void);
+void HWR_RenderWall(FOutVector *wallVerts, FSurfaceInfo *pSurf, FBITFIELD blend, boolean fogwall, INT32 lightlevel, extracolormap_t *wallcolormap);
+
+// --------
 // hw_shaders.c
 // --------
 boolean HWR_InitShaders(void);

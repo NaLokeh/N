@@ -96,6 +96,8 @@ FBITFIELD HWR_GetBlendModeFlag(INT32 style);
 FBITFIELD HWR_SurfaceBlend(INT32 style, INT32 transtablenum, FSurfaceInfo *pSurf);
 FBITFIELD HWR_TranstableToAlpha(INT32 transtablenum, FSurfaceInfo *pSurf);
 
+void HWR_AddTransparentWall(FOutVector *wallVerts, FSurfaceInfo *pSurf, INT32 texnum, FBITFIELD blend, boolean fogwall, INT32 lightlevel, extracolormap_t *wallcolormap);
+
 boolean HWR_ShouldUsePaletteRendering(void);
 
 extern CV_PossibleValue_t glanisotropicmode_cons_t[];
@@ -128,6 +130,9 @@ extern float gl_viewwidth, gl_viewheight, gl_baseviewwindowy;
 
 extern float gl_viewwindowx, gl_basewindowcentery;
 
+extern seg_t *gl_curline;
+extern side_t *gl_sidedef;
+extern line_t *gl_linedef;
 extern sector_t *gl_frontsector;
 extern sector_t *gl_backsector;
 
