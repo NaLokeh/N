@@ -553,7 +553,7 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 
 void HWR_RenderPlayerView(INT32 viewnumber, player_t *player)
 {
-	boolean will_render_skybox,	skybg_in_main_viewpoint;
+	boolean will_render_skybox, skybg_in_main_viewpoint;
 
 	// Clear the Color Buffer, stops HOMs. Also seems to fix the skybox issue on Intel GPUs.
 	if (viewnumber == 0) // Only do it if it's the first screen being rendered
