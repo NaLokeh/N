@@ -483,8 +483,6 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 
 	HWR_ClearSprites();
 
-	drawcount = 0;
-
 	a1 = gld_FrustumAngle(gl_aimingangle);
 	gld_clipper_Clear();
 	gld_clipper_SafeAddClipRange(viewangle + a1, viewangle - a1);
@@ -538,7 +536,7 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 	ps_numdrawnodes.value.i = 0;
 	ps_hw_nodesorttime.value.p = 0;
 	ps_hw_nodedrawtime.value.p = 0;
-	HWR_CreateDrawNodes(); //Hurdler: render 3D water and transparent walls after everything
+	HWR_RenderDrawNodes(); //Hurdler: render 3D water and transparent walls after everything
 
 	HWD.pfnSetTransform(NULL);
 	HWD.pfnUnSetShader();
