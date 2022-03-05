@@ -165,12 +165,12 @@ void Portal_Add2Lines (const INT32 line1, const INT32 line2, const INT32 x1, con
 	vertex_t dest_c, start_c;
 
 	// looking glass center
-	start_c.x = (start->v1->x + start->v2->x) / 2;
-	start_c.y = (start->v1->y + start->v2->y) / 2;
+	start_c.x = start->v1->x/2 + start->v2->x/2;
+	start_c.y = start->v1->y/2 + start->v2->y/2;
 
 	// other side center
-	dest_c.x = (dest->v1->x + dest->v2->x) / 2;
-	dest_c.y = (dest->v1->y + dest->v2->y) / 2;
+	dest_c.x = dest->v1->x/2 + dest->v2->x/2;
+	dest_c.y = dest->v1->y/2 + dest->v2->y/2;
 
 	disttopoint = R_PointToDist2(start_c.x, start_c.y, viewx, viewy);
 	angtopoint = R_PointToAngle2(start_c.x, start_c.y, viewx, viewy);

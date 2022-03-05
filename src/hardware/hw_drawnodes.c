@@ -78,26 +78,40 @@ typedef struct
 
 // initial size of drawnode array
 #define DRAWNODES_INIT_SIZE 64
-gl_drawnode_t *drawnodes = NULL;
+/*gl_drawnode_t *drawnodes = NULL;
 INT32 numdrawnodes = 0;
-INT32 alloceddrawnodes = 0;
+INT32 alloceddrawnodes = 0;*/
+
+typedef struct
+{
+	gl_drawnode_t *drawnodes;
+	INT32 numdrawnodes;
+	INT32 alloceddrawnodes;
+} gl_drawnode_state_t;
+
+// todo magic number 16
+// portal rendering will push and pop this stack
+// to keep multiple drawnode lists around until they're needed
+static gl_drawnode_state_t state_stack[16] = {0};
+static int stack_level = 0;
+static gl_drawnode_state_t *cst = &state_stack[0]; // current state
 
 static void *HWR_CreateDrawNode(gl_drawnode_type_t type)
 {
 	gl_drawnode_t *drawnode;
 
-	if (!drawnodes)
+	if (!cst->drawnodes)
 	{
-		alloceddrawnodes = DRAWNODES_INIT_SIZE;
-		drawnodes = Z_Malloc(alloceddrawnodes * sizeof(gl_drawnode_t), PU_LEVEL, &drawnodes);
+		cst->alloceddrawnodes = DRAWNODES_INIT_SIZE;
+		cst->drawnodes = Z_Malloc(cst->alloceddrawnodes * sizeof(gl_drawnode_t), PU_LEVEL, &cst->drawnodes);
 	}
-	else if (numdrawnodes >= alloceddrawnodes)
+	else if (cst->numdrawnodes >= cst->alloceddrawnodes)
 	{
-		alloceddrawnodes *= 2;
-		Z_Realloc(drawnodes, alloceddrawnodes * sizeof(gl_drawnode_t), PU_LEVEL, &drawnodes);
+		cst->alloceddrawnodes *= 2;
+		Z_Realloc(cst->drawnodes, cst->alloceddrawnodes * sizeof(gl_drawnode_t), PU_LEVEL, &cst->drawnodes);
 	}
 
-	drawnode = &drawnodes[numdrawnodes++];
+	drawnode = &cst->drawnodes[cst->numdrawnodes++];
 	drawnode->type = type;
 
 	// not sure if returning different pointers to a union is necessary
@@ -160,12 +174,32 @@ void HWR_AddTransparentPolyobjectFloor(levelflat_t *levelflat, polyobj_t *polyse
 	polyplaneinfo->planecolormap = planecolormap;
 }
 
+// pushes all drawnode rendering state to stack
+void HWR_PushDrawNodeState(void)
+{
+	// todo magic number 16
+	if (stack_level == 15)
+		I_Error("HWR_PushDrawNodeState: State stack overflow");
+
+	stack_level++;
+	cst++;
+}
+
+void HWR_PopDrawNodeState(void)
+{
+	if (stack_level == 0)
+		I_Error("HWR_PopDrawNodeState: State stack underflow");
+
+	stack_level--;
+	cst--;
+}
+
 static int CompareDrawNodePlanes(const void *p1, const void *p2)
 {
 	INT32 n1 = *(const INT32*)p1;
 	INT32 n2 = *(const INT32*)p2;
 
-	return ABS(drawnodes[n2].u.plane.fixedheight - viewz) - ABS(drawnodes[n1].u.plane.fixedheight - viewz);
+	return ABS(cst->drawnodes[n2].u.plane.fixedheight - viewz) - ABS(cst->drawnodes[n1].u.plane.fixedheight - viewz);
 }
 
 //
@@ -179,34 +213,34 @@ void HWR_RenderDrawNodes(void)
 	// A list of indices into the drawnodes array.
 	INT32 *sortindex;
 
-	if (!numdrawnodes)
+	if (!cst->numdrawnodes)
 		return;
 
-	ps_numdrawnodes.value.i = numdrawnodes;
+	ps_numdrawnodes.value.i = cst->numdrawnodes;
 
 	PS_START_TIMING(ps_hw_nodesorttime);
 
-	sortindex = Z_Malloc(sizeof(INT32) * numdrawnodes, PU_STATIC, NULL);
+	sortindex = Z_Malloc(sizeof(INT32) * cst->numdrawnodes, PU_STATIC, NULL);
 
 	// Reversed order
-	for (i = 0; i < numdrawnodes; i++)
-		sortindex[i] = numdrawnodes - i - 1;
+	for (i = 0; i < cst->numdrawnodes; i++)
+		sortindex[i] = cst->numdrawnodes - i - 1;
 
 	// The order is correct apart from planes in the same subsector.
 	// So scan the list and sort out these cases.
 	// For each consecutive run of planes in the list, sort that run based on
 	// plane height and view height.
-	while (run_start < numdrawnodes-1) // numdrawnodes-1 because a 1 plane run at the end of the list does not count
+	while (run_start < cst->numdrawnodes-1) // numdrawnodes-1 because a 1 plane run at the end of the list does not count
 	{
 		// locate run start
-		if (drawnodes[sortindex[run_start]].type == DRAWNODE_PLANE)
+		if (cst->drawnodes[sortindex[run_start]].type == DRAWNODE_PLANE)
 		{
 			// found it, now look for run end
 			INT32 run_end; // (inclusive)
 
-			for (i = run_start+1; i < numdrawnodes; i++)
+			for (i = run_start+1; i < cst->numdrawnodes; i++)
 			{
-				if (drawnodes[sortindex[i]].type != DRAWNODE_PLANE) break;
+				if (cst->drawnodes[sortindex[i]].type != DRAWNODE_PLANE) break;
 			}
 			run_end = i-1;
 			if (run_end > run_start) // if there are multiple consecutive planes, not just one
@@ -230,9 +264,9 @@ void HWR_RenderDrawNodes(void)
 	// Okay! Let's draw it all! Woo!
 	HWD.pfnSetTransform(&atransform);
 
-	for (i = 0; i < numdrawnodes; i++)
+	for (i = 0; i < cst->numdrawnodes; i++)
 	{
-		gl_drawnode_t *drawnode = &drawnodes[sortindex[i]];
+		gl_drawnode_t *drawnode = &cst->drawnodes[sortindex[i]];
 
 		if (drawnode->type == DRAWNODE_PLANE)
 		{
@@ -271,7 +305,7 @@ void HWR_RenderDrawNodes(void)
 
 	PS_STOP_TIMING(ps_hw_nodedrawtime);
 
-	numdrawnodes = 0;
+	cst->numdrawnodes = 0;
 
 	Z_Free(sortindex);
 }

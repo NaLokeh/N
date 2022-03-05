@@ -55,7 +55,6 @@ static GLuint NOTEXTURE_NUM = 0;
 #define      N_PI_DEMI               (M_PIl/2.0f) //(1.5707963268f)
 
 #define      ASPECT_RATIO            (1.0f)  //(320.0f/200.0f)
-#define      FAR_CLIPPING_PLANE      32768.0f // Draw further! Tails 01-21-2001
 static float NEAR_CLIPPING_PLANE =   NZCLIP_PLANE;
 
 // **************************************************************************
@@ -67,6 +66,7 @@ static  GLuint      tex_downloaded  = 0;
 static  GLuint      lt_downloaded   = 0; // currently bound lighttable texture
 static  GLfloat     fov             = 90.0f;
 static  FBITFIELD   CurrentPolyFlags;
+static  GLint       gl_stencil_ref  = 0;
 
 // Linked list of all textures.
 static FTextureInfo *TexCacheTail = NULL;
@@ -327,6 +327,12 @@ static PFNglDepthMask pglDepthMask;
 typedef void (APIENTRY * PFNglDepthRange) (GLclampd near_val, GLclampd far_val);
 static PFNglDepthRange pglDepthRange;
 
+/* Stencil Buffer */
+typedef void (APIENTRY * PFNglStencilFunc) (GLenum func, GLint ref, GLuint mask);
+static PFNglStencilFunc pglStencilFunc;
+typedef void (APIENTRY * PFNglStencilOp) (GLenum sfail, GLenum dpfail, GLenum dppass);
+static PFNglStencilOp pglStencilOp;
+
 /* Transformation */
 typedef void (APIENTRY * PFNglMatrixMode) (GLenum mode);
 static PFNglMatrixMode pglMatrixMode;
@@ -506,6 +512,9 @@ boolean SetupGLfunc(void)
 	GETOPENGLFUNC(pglDepthFunc, glDepthFunc)
 	GETOPENGLFUNC(pglDepthMask, glDepthMask)
 	GETOPENGLFUNC(pglDepthRange, glDepthRange)
+
+	GETOPENGLFUNC(pglStencilFunc, glStencilFunc)
+	GETOPENGLFUNC(pglStencilOp, glStencilOp)
 
 	GETOPENGLFUNC(pglMatrixMode, glMatrixMode)
 	GETOPENGLFUNC(pglViewport, glViewport)
@@ -1015,6 +1024,7 @@ void SetStates(void)
 
 	//pglDisable(GL_DITHER);         // faB: ??? (undocumented in OpenGL 1.1)
 	                              // Hurdler: yes, it is!
+	pglEnable(GL_STENCIL_TEST);
 	pglEnable(GL_DEPTH_TEST);    // check the depth buffer
 	pglDepthMask(GL_TRUE);             // enable writing to depth buffer
 	pglClearDepth(1.0f);
@@ -1227,6 +1237,7 @@ EXPORT void HWRAPI(GClipRect) (INT32 minx, INT32 miny, INT32 maxx, INT32 maxy, f
 // -----------------+
 EXPORT void HWRAPI(ClearBuffer) (FBOOLEAN ColorMask,
                                     FBOOLEAN DepthMask,
+                                    FBOOLEAN StencilMask,
                                     FRGBAFloat * ClearColor)
 {
 	// GL_DBG_Printf ("ClearBuffer(%d)\n", alpha);
@@ -1248,6 +1259,8 @@ EXPORT void HWRAPI(ClearBuffer) (FBOOLEAN ColorMask,
 		pglDepthFunc(GL_LEQUAL);
 		ClearMask |= GL_DEPTH_BUFFER_BIT;
 	}
+	if (StencilMask)
+		ClearMask |= GL_STENCIL_BUFFER_BIT;
 
 	SetBlend(DepthMask ? PF_Occlude | CurrentPolyFlags : CurrentPolyFlags&~PF_Occlude);
 
@@ -2264,6 +2277,32 @@ EXPORT void HWRAPI(SetSpecialState) (hwdspecialstate_t IdState, INT32 Value)
 				Flush(); //??? if we want to change filter mode by texture, remove this
 			break;
 
+		case HWD_SET_STENCIL_MODE:
+			switch (Value)
+			{
+				case HWD_STENCIL_INACTIVE:
+					pglStencilFunc(GL_ALWAYS, gl_stencil_ref, 0xFF);
+					pglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+					break;
+				case HWD_STENCIL_PORTAL_BEGIN:
+					pglStencilFunc(GL_EQUAL, gl_stencil_ref, 0xFF);
+					pglStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+					break;
+				case HWD_STENCIL_PORTAL_INSIDE:
+					pglStencilFunc(GL_EQUAL, gl_stencil_ref, 0xFF);
+					pglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+					break;
+				case HWD_STENCIL_PORTAL_FINISH:
+					pglStencilFunc(GL_EQUAL, gl_stencil_ref, 0xFF);
+					pglStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
+					break;
+			}
+			break;
+
+		case HWD_SET_STENCIL_LEVEL:
+			gl_stencil_ref = Value;
+			break;
+
 		default:
 			break;
 	}
@@ -3201,7 +3240,7 @@ EXPORT void HWRAPI(DrawScreenFinalTexture)(int tex, int width, int height)
 
 	clearColour.red = clearColour.green = clearColour.blue = 0;
 	clearColour.alpha = 1;
-	ClearBuffer(true, false, &clearColour);
+	ClearBuffer(true, false, false, &clearColour);
 	pglBindTexture(GL_TEXTURE_2D, screenTextures[tex]);
 
 	pglColor4ubv(white);

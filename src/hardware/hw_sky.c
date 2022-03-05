@@ -179,9 +179,7 @@ void HWR_DrawSkyBackground(player_t *player)
 
 		memset(&dometransform, 0x00, sizeof(FTransform));
 
-		//04/01/2000: Hurdler: added for T&L
-		//                     It should replace all other gl_viewxxx when finished
-		HWR_SetTransformAiming(&dometransform, player, false);
+		HWR_SetTransformAiming(&dometransform, player, false, false);
 		dometransform.angley = (float)((viewangle-ANGLE_270)>>ANGLETOFINESHIFT)*(360.0f/(float)FINEANGLES);
 
 		if (*type == postimg_flip)
@@ -248,7 +246,7 @@ void HWR_DrawSkyBackground(player_t *player)
 		// software doesn't draw any further than 1024 for skies anyway, but this doesn't overlap properly
 		// The only time this will probably be an issue is when a sky wider than 1024 is used as a sky AND a regular wall texture
 
-		angle = (dup_viewangle + ANGLE_45);
+		angle = (viewangle + ANGLE_45);
 
 		dimensionmultiply = ((float)textures[texturetranslation[skytexture]]->width/256.0f);
 

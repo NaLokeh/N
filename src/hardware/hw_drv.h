@@ -39,7 +39,7 @@ EXPORT void HWRAPI(DrawPolygon) (FSurfaceInfo *pSurf, FOutVector *pOutVerts, FUI
 EXPORT void HWRAPI(DrawIndexedTriangles) (FSurfaceInfo *pSurf, FOutVector *pOutVerts, FUINT iNumPts, FBITFIELD PolyFlags, UINT32 *IndexArray);
 EXPORT void HWRAPI(RenderSkyDome) (gl_sky_t *sky);
 EXPORT void HWRAPI(SetBlend) (FBITFIELD PolyFlags);
-EXPORT void HWRAPI(ClearBuffer) (FBOOLEAN ColorMask, FBOOLEAN DepthMask, FRGBAFloat *ClearColor);
+EXPORT void HWRAPI(ClearBuffer) (FBOOLEAN ColorMask, FBOOLEAN DepthMask, FBOOLEAN StencilMask, FRGBAFloat *ClearColor);
 EXPORT void HWRAPI(SetTexture) (GLMipmap_t *TexInfo);
 EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *TexInfo);
 EXPORT void HWRAPI(DeleteTexture) (GLMipmap_t *TexInfo);

@@ -30,28 +30,50 @@ typedef struct
 // Set with HWR_SetCurrentTexture.
 GLMipmap_t *current_texture = NULL;
 
-boolean currently_batching = false;
+//boolean currently_batching = false;
 
 // Dynamic arrays for:
 //   - unsorted draw calls
-//   - sorted order of draw calls
 //   - unsorted vertices
+// These can be postponed by pushing them to the batching state stack
+
+typedef struct
+{
+	boolean currently_batching;
+	DrawCallInfo *drawCalls;
+	int drawCallsSize;
+	int drawCallsCapacity;
+	FOutVector *unsortedVertices;
+	int unsortedVerticesSize;
+	int unsortedVerticesCapacity;
+} BatchingState;
+
+// used for postponing the rendering until after the skybox is done
+#define STATE_STACK_SIZE 2
+BatchingState stateStack[STATE_STACK_SIZE] = {0};
+int stateStackLevel = 0; // currently used level in state stack
+BatchingState *curState = &stateStack[0];
+
+// Dynamic arrays for:
+//   - sorted order of draw calls
 //   - final (sorted) vertices
 //   - vertex indices for sorted vertices
+// These are only used during HWR_RenderBatches so they don't need
+// to be in the state stack
 
 // contains the draw calls from DrawPolygon, waiting to be processed
-DrawCallInfo* drawCalls = NULL;
+/*DrawCallInfo* drawCalls = NULL;
 int drawCallsSize = 0;
-int drawCallsCapacity = 65536;
+int drawCallsCapacity = 65536;*/
 
 // contains sorted order (array indices) for drawCalls
 // (therefore size and capacity shared with it)
 UINT32* drawCallOrder = NULL;
 
 // contains unsorted vertices and texture coordinates from DrawPolygon
-FOutVector* unsortedVertices = NULL;
+/*FOutVector* unsortedVertices = NULL;
 int unsortedVerticesSize = 0;
-int unsortedVerticesCapacity = 65536;
+int unsortedVerticesCapacity = 65536;*/
 
 // contains subset of sorted vertices and texture coordinates to be sent to gpu
 FOutVector* finalVertices = NULL;
@@ -67,20 +89,36 @@ int finalIndicesSize = 0;
 // Call HWR_RenderBatches to render all the collected geometry.
 void HWR_StartBatching(void)
 {
-	if (currently_batching)
-		I_Error("Repeat call to HWR_StartBatching without HWR_RenderBatches");
+	if (curState->currently_batching)
+		I_Error("HWR_StartBatching: batching was already started");
 
 	// init arrays if that has not been done yet
+	if (!curState->drawCalls)
+	{
+		curState->drawCallsCapacity = curState->unsortedVerticesCapacity = 65536;
+		curState->drawCalls = malloc(
+				curState->drawCallsCapacity * sizeof(DrawCallInfo));
+		curState->unsortedVertices = malloc(
+				curState->unsortedVerticesCapacity * sizeof(FOutVector));
+	}
 	if (!finalVertices)
 	{
 		finalVertices = malloc(finalVerticesCapacity * sizeof(FOutVector));
 		finalIndices = malloc(finalVerticesCapacity * 3 * sizeof(UINT32));
-		drawCalls = malloc(drawCallsCapacity * sizeof(DrawCallInfo));
-		drawCallOrder = malloc(drawCallsCapacity * sizeof(UINT32));
-		unsortedVertices = malloc(unsortedVerticesCapacity * sizeof(FOutVector));
+		drawCallOrder = malloc(curState->drawCallsCapacity * sizeof(UINT32));
 	}
 
-	currently_batching = true;
+	curState->currently_batching = true;
+}
+
+// Disable batching while keeping collected draw calls.
+// Call HWR_StartBatching again to resume.
+void HWR_PauseBatching(void)
+{
+	if (!curState->currently_batching)
+		I_Error("HWR_PauseBatching: batching not started");
+
+	curState->currently_batching = false;
 }
 
 // This replaces the direct calls to pfnSetTexture in cases where batching is available.
@@ -88,7 +126,7 @@ void HWR_StartBatching(void)
 // Doing this was easier than getting a texture pointer to HWR_ProcessPolygon.
 void HWR_SetCurrentTexture(GLMipmap_t *texture)
 {
-	if (currently_batching)
+	if (curState->currently_batching)
 		current_texture = texture;
 	else
 		HWD.pfnSetTexture(texture);
@@ -97,46 +135,48 @@ void HWR_SetCurrentTexture(GLMipmap_t *texture)
 static void HWR_CollectDrawCallInfo(FSurfaceInfo *pSurf, FUINT iNumPts, FBITFIELD PolyFlags, int shader_target, boolean horizonSpecial)
 {
 	// make sure dynamic array has capacity
-	if (drawCallsSize == drawCallsCapacity)
+	if (curState->drawCallsSize == curState->drawCallsCapacity)
 	{
 		DrawCallInfo* new_array;
 		// ran out of space, make new array double the size
-		drawCallsCapacity *= 2;
-		new_array = malloc(drawCallsCapacity * sizeof(DrawCallInfo));
-		memcpy(new_array, drawCalls, drawCallsSize * sizeof(DrawCallInfo));
-		free(drawCalls);
-		drawCalls = new_array;
+		curState->drawCallsCapacity *= 2;
+		new_array = malloc(curState->drawCallsCapacity * sizeof(DrawCallInfo));
+		memcpy(new_array, curState->drawCalls, curState->drawCallsSize * sizeof(DrawCallInfo));
+		free(curState->drawCalls);
+		curState->drawCalls = new_array;
 		// also need to redo the index array, dont need to copy it though
 		free(drawCallOrder);
-		drawCallOrder = malloc(drawCallsCapacity * sizeof(UINT32));
+		drawCallOrder = malloc(curState->drawCallsCapacity * sizeof(UINT32));
 	}
 	// add entry to array
-	drawCalls[drawCallsSize].surf = *pSurf;
-	drawCalls[drawCallsSize].vertsIndex = unsortedVerticesSize;
-	drawCalls[drawCallsSize].numVerts = iNumPts;
-	drawCalls[drawCallsSize].polyFlags = PolyFlags;
-	drawCalls[drawCallsSize].texture = current_texture;
-	drawCalls[drawCallsSize].shader = (shader_target != -1) ? HWR_GetShaderFromTarget(shader_target) : shader_target;
-	drawCalls[drawCallsSize].horizonSpecial = horizonSpecial;
-	drawCallsSize++;
+	curState->drawCalls[curState->drawCallsSize].surf = *pSurf;
+	curState->drawCalls[curState->drawCallsSize].vertsIndex = curState->unsortedVerticesSize;
+	curState->drawCalls[curState->drawCallsSize].numVerts = iNumPts;
+	curState->drawCalls[curState->drawCallsSize].polyFlags = PolyFlags;
+	curState->drawCalls[curState->drawCallsSize].texture = current_texture;
+	curState->drawCalls[curState->drawCallsSize].shader =
+			(shader_target != -1) ? HWR_GetShaderFromTarget(shader_target) : shader_target;
+	curState->drawCalls[curState->drawCallsSize].horizonSpecial = horizonSpecial;
+	curState->drawCallsSize++;
 }
 
 static void HWR_CollectDrawCallVertices(FOutVector *pOutVerts, FUINT iNumPts)
 {
 	// make sure dynamic array has capacity
-	while (unsortedVerticesSize + (int)iNumPts > unsortedVerticesCapacity)
+	while (curState->unsortedVerticesSize + (int)iNumPts >
+			curState->unsortedVerticesCapacity)
 	{
 		FOutVector* new_array;
 		// need more space for vertices in unsortedVertices
-		unsortedVerticesCapacity *= 2;
-		new_array = malloc(unsortedVerticesCapacity * sizeof(FOutVector));
-		memcpy(new_array, unsortedVertices, unsortedVerticesSize * sizeof(FOutVector));
-		free(unsortedVertices);
-		unsortedVertices = new_array;
+		curState->unsortedVerticesCapacity *= 2;
+		new_array = malloc(curState->unsortedVerticesCapacity * sizeof(FOutVector));
+		memcpy(new_array, curState->unsortedVertices, curState->unsortedVerticesSize * sizeof(FOutVector));
+		free(curState->unsortedVertices);
+		curState->unsortedVertices = new_array;
 	}
 	// add vertices to array
-	memcpy(&unsortedVertices[unsortedVerticesSize], pOutVerts, iNumPts * sizeof(FOutVector));
-	unsortedVerticesSize += iNumPts;
+	memcpy(&curState->unsortedVertices[curState->unsortedVerticesSize], pOutVerts, iNumPts * sizeof(FOutVector));
+	curState->unsortedVerticesSize += iNumPts;
 }
 
 // If batching is enabled, this function collects the polygon data and the chosen texture
@@ -144,7 +184,7 @@ static void HWR_CollectDrawCallVertices(FOutVector *pOutVerts, FUINT iNumPts)
 // render the polygon immediately.
 void HWR_ProcessPolygon(FSurfaceInfo *pSurf, FOutVector *pOutVerts, FUINT iNumPts, FBITFIELD PolyFlags, int shader_target, boolean horizonSpecial)
 {
-	if (currently_batching)
+	if (curState->currently_batching)
 	{
 		if (!pSurf)
 		{
@@ -163,12 +203,33 @@ void HWR_ProcessPolygon(FSurfaceInfo *pSurf, FOutVector *pOutVerts, FUINT iNumPt
 	}
 }
 
+// TODO could alternatively save drawCalls and unsortedVertices variables here
+// instead of having "curState->" everywhere
+void HWR_PushBatchingState(void)
+{
+	if (stateStackLevel == STATE_STACK_SIZE - 1)
+		I_Error("HWR_PushBatchingState: State stack overflow");
+
+	stateStackLevel++;
+	curState++;
+}
+
+// TODO as above
+void HWR_PopBatchingState(void)
+{
+	if (stateStackLevel == 0)
+		I_Error("HWR_PopBatchingState: State stack underflow");
+
+	stateStackLevel--;
+	curState--;
+}
+
 static int compareDrawCalls(const void *p1, const void *p2)
 {
 	UINT32 index1 = *(const UINT32*)p1;
 	UINT32 index2 = *(const UINT32*)p2;
-	DrawCallInfo* poly1 = &drawCalls[index1];
-	DrawCallInfo* poly2 = &drawCalls[index2];
+	DrawCallInfo* poly1 = &curState->drawCalls[index1];
+	DrawCallInfo* poly2 = &curState->drawCalls[index2];
 	int diff;
 	INT64 diff64;
 	UINT32 downloaded1 = 0;
@@ -217,8 +278,8 @@ static int compareDrawCallsNoShaders(const void *p1, const void *p2)
 {
 	UINT32 index1 = *(const UINT32*)p1;
 	UINT32 index2 = *(const UINT32*)p2;
-	DrawCallInfo* poly1 = &drawCalls[index1];
-	DrawCallInfo* poly2 = &drawCalls[index2];
+	DrawCallInfo* poly1 = &curState->drawCalls[index1];
+	DrawCallInfo* poly2 = &curState->drawCalls[index2];
 	int diff;
 	INT64 diff64;
 
@@ -274,7 +335,7 @@ static void HWR_CollectVerticesIntoBatch(DrawCallInfo *drawCall)
 		finalIndices = new_index_array;
 	}
 	// write the vertices of the polygon
-	memcpy(&finalVertices[finalVerticesSize], &unsortedVertices[drawCall->vertsIndex],
+	memcpy(&finalVertices[finalVerticesSize], &curState->unsortedVertices[drawCall->vertsIndex],
 		numVerts * sizeof(FOutVector));
 	// write the indexes, pointing to the fan vertexes but in triangles format
 	firstVIndex = finalVerticesSize;
@@ -363,7 +424,7 @@ static void HWR_ExecuteStateChanges(unsigned int stateChanges, DrawCallInfo *dc)
 
 static void HWR_InitBatchingStats(void)
 {
-	ps_hw_numpolys.value.i = drawCallsSize;
+	ps_hw_numpolys.value.i = curState->drawCallsSize;
 	ps_hw_numcalls.value.i = ps_hw_numverts.value.i
 		= ps_hw_numshaders.value.i = ps_hw_numtextures.value.i
 		= ps_hw_numpolyflags.value.i = ps_hw_numcolors.value.i = 0;
@@ -376,26 +437,26 @@ void HWR_RenderBatches(void)
 	int drawCallReadPos = 0; // position in drawCallOrder
 	int i;
 
-	if (!currently_batching)
+	if (!curState->currently_batching)
 		I_Error("HWR_RenderBatches called without starting batching");
 
-	currently_batching = false; // no longer collecting batches
+	curState->currently_batching = false; // no longer collecting batches
 
 	HWR_InitBatchingStats();
 
-	if (!drawCallsSize)
+	if (!curState->drawCallsSize)
 		return; // nothing to draw
 
 	// init drawCallOrder
-	for (i = 0; i < drawCallsSize; i++)
+	for (i = 0; i < curState->drawCallsSize; i++)
 		drawCallOrder[i] = i;
 
 	// sort the draw calls
 	PS_START_TIMING(ps_hw_batchsorttime);
 	if (cv_glshaders.value && gl_shadersavailable)
-		qsort(drawCallOrder, drawCallsSize, sizeof(UINT32), compareDrawCalls);
+		qsort(drawCallOrder, curState->drawCallsSize, sizeof(UINT32), compareDrawCalls);
 	else
-		qsort(drawCallOrder, drawCallsSize, sizeof(UINT32), compareDrawCallsNoShaders);
+		qsort(drawCallOrder, curState->drawCallsSize, sizeof(UINT32), compareDrawCallsNoShaders);
 	PS_STOP_TIMING(ps_hw_batchsorttime);
 	// sort grouping order
 	// 1. shader
@@ -407,7 +468,7 @@ void HWR_RenderBatches(void)
 	PS_START_TIMING(ps_hw_batchdrawtime);
 
 	// set state for first batch
-	HWR_ExecuteStateChanges(0xFFFF, &drawCalls[drawCallOrder[0]]);
+	HWR_ExecuteStateChanges(0xFFFF, &curState->drawCalls[drawCallOrder[0]]);
 
 	// - iterate through draw calls
 	// - accumulate converted vertices and indices into finalVertices and finalIndices
@@ -416,18 +477,18 @@ void HWR_RenderBatches(void)
 	{
 		boolean stopFlag = false;
 		unsigned int stateChanges = 0; // flags defined above HWR_MarkStateChanges
-		DrawCallInfo *currentDrawCall = &drawCalls[drawCallOrder[drawCallReadPos++]];
+		DrawCallInfo *currentDrawCall = &curState->drawCalls[drawCallOrder[drawCallReadPos++]];
 		DrawCallInfo *nextDrawCall = NULL;
 
 		HWR_CollectVerticesIntoBatch(currentDrawCall);
 
-		if (drawCallReadPos >= drawCallsSize) // was that the last draw call?
+		if (drawCallReadPos >= curState->drawCallsSize) // was that the last draw call?
 		{
 			stopFlag = true;
 		}
 		else
 		{
-			nextDrawCall = &drawCalls[drawCallOrder[drawCallReadPos]];
+			nextDrawCall = &curState->drawCalls[drawCallOrder[drawCallReadPos]];
 			stateChanges = HWR_MarkStateChanges(currentDrawCall, nextDrawCall);
 		}
 
@@ -453,8 +514,8 @@ void HWR_RenderBatches(void)
 			HWR_ExecuteStateChanges(stateChanges, nextDrawCall);
 	}
 	// reset the arrays (set sizes to 0)
-	drawCallsSize = 0;
-	unsortedVerticesSize = 0;
+	curState->drawCallsSize = 0;
+	curState->unsortedVerticesSize = 0;
 
 	PS_STOP_TIMING(ps_hw_batchdrawtime);
 }

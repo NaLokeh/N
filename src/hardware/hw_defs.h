@@ -15,6 +15,7 @@
 #include "../doomtype.h"
 #include "../r_defs.h"
 
+#define FAR_CLIPPING_PLANE 32768.0f // Draw further! Tails 01-21-2001
 #define ZCLIP_PLANE 4.0f // Used for the actual game drawing
 #define NZCLIP_PLANE 0.9f // Seems to be only used for the HUD and screen textures
 
@@ -297,10 +298,21 @@ enum hwdsetspecialstate
 	HWD_SET_SHADERS,
 	HWD_SET_TEXTUREFILTERMODE,
 	HWD_SET_TEXTUREANISOTROPICMODE,
-	HWD_NUMSTATE
+	HWD_SET_STENCIL_MODE,
+	HWD_SET_STENCIL_LEVEL, // must set mode afterwards for level to come into effect
+	HWD_NUMSTATE //           (TODO could create separate stencil function in r_opengl.c to avoid hacky behaviour like this)
 };
 
 typedef enum hwdsetspecialstate hwdspecialstate_t;
+
+// stencil modes
+enum
+{
+	HWD_STENCIL_INACTIVE,
+	HWD_STENCIL_PORTAL_BEGIN,
+	HWD_STENCIL_PORTAL_INSIDE,
+	HWD_STENCIL_PORTAL_FINISH
+};
 
 enum hwdshaderstage
 {
