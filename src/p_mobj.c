@@ -10870,6 +10870,11 @@ mobj_t *P_SpawnMobj(fixed_t x, fixed_t y, fixed_t z, mobjtype_t type)
 
 	if (CheckForReverseGravity && !(mobj->flags & MF_NOBLOCKMAP))
 		P_CheckGravity(mobj, false);
+	
+	// interpolation and synch fix
+	mobj->new_x = x;
+	mobj->new_y = y;
+	mobj->new_z = mobj->z;
 
 	return mobj;
 }
