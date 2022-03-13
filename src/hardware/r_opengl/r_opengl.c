@@ -1,6 +1,6 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
-// Copyright (C) 1998-2021 by Sonic Team Junior.
+// Copyright (C) 1998-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -72,6 +72,9 @@ static  FBITFIELD   CurrentPolyFlags;
 static FTextureInfo *TexCacheTail = NULL;
 static FTextureInfo *TexCacheHead = NULL;
 
+static RGBA_t *textureBuffer = NULL;
+static size_t textureBufferSize = 0;
+
 // Linked list of all lighttables.
 static LTListItem *LightTablesTail = NULL;
 static LTListItem *LightTablesHead = NULL;
@@ -80,6 +83,7 @@ static RGBA_t screenPalette[256] = {0}; // the palette for the postprocessing st
 static GLuint screenPaletteTex = 0; // 1D texture containing the screen palette
 static GLuint paletteLookupTex = 0; // 3D texture containing RGB -> palette index lookup table
 RGBA_t  myPaletteData[256]; // the palette for converting textures to RGBA
+
 GLint   screen_width    = 0;               // used by Draw2DLine()
 GLint   screen_height   = 0;
 GLbyte  screen_depth    = 0;
@@ -145,7 +149,6 @@ static const GLfloat byte2float[256] = {
 // -----------------+
 // GL_DBG_Printf    : Output debug messages to debug log if DEBUG_TO_FILE is defined,
 //                  : else do nothing
-// Returns          :
 // -----------------+
 
 #ifdef DEBUG_TO_FILE
@@ -173,8 +176,6 @@ FUNCPRINTF void GL_DBG_Printf(const char *format, ...)
 
 // -----------------+
 // GL_MSG_Warning   : Raises a warning.
-//                  :
-// Returns          :
 // -----------------+
 
 static void GL_MSG_Warning(const char *format, ...)
@@ -198,8 +199,6 @@ static void GL_MSG_Warning(const char *format, ...)
 
 // -----------------+
 // GL_MSG_Error     : Raises an error.
-//                  :
-// Returns          :
 // -----------------+
 
 static void GL_MSG_Error(const char *format, ...)
@@ -1112,6 +1111,10 @@ void Flush(void)
 
 	TexCacheTail = TexCacheHead = NULL; //Hurdler: well, TexCacheHead is already NULL
 	tex_downloaded = 0;
+
+	free(textureBuffer);
+	textureBuffer = NULL;
+	textureBufferSize = 0;
 }
 
 
@@ -1145,7 +1148,6 @@ INT32 isExtAvailable(const char *extension, const GLubyte *start)
 
 // -----------------+
 // Init             : Initialise the OpenGL interface API
-// Returns          :
 // -----------------+
 EXPORT boolean HWRAPI(Init) (void)
 {
@@ -1179,11 +1181,11 @@ EXPORT void HWRAPI(ReadScreenTexture) (int tex, UINT8 *dst_data)
 	// and draw generic2 back after reading the framebuffer.
 	// this hack is for some reason **much** faster than the simple solution of using glGetTexImage.
 	if (tex != HWD_SCREENTEXTURE_GENERIC2)
-		DrawScreenTexture(tex);
+		DrawScreenTexture(tex, NULL, 0);
 	pglPixelStorei(GL_PACK_ALIGNMENT, 1);
 	pglReadPixels(0, 0, screen_width, screen_height, GL_RGB, GL_UNSIGNED_BYTE, dst_data);
 	if (tex != HWD_SCREENTEXTURE_GENERIC2)
-		DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2);
+		DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2, NULL, 0);
 	// Flip image upside down.
 	// In other words, convert OpenGL's "bottom->top" row order into "top->bottom".
 	for(i = 0; i < screen_height/2; i++)
@@ -1488,40 +1490,48 @@ EXPORT void HWRAPI(SetBlend) (FBITFIELD PolyFlags)
 	CurrentPolyFlags = PolyFlags;
 }
 
+static void AllocTextureBuffer(GLMipmap_t *pTexInfo)
+{
+	size_t size = pTexInfo->width * pTexInfo->height;
+	if (size > textureBufferSize)
+	{
+		textureBuffer = realloc(textureBuffer, size * sizeof(RGBA_t));
+		if (textureBuffer == NULL)
+			I_Error("AllocTextureBuffer: out of memory allocating %s bytes", sizeu1(size * sizeof(RGBA_t)));
+		textureBufferSize = size;
+	}
+}
+
 // -----------------+
-// UpdateTexture    : Updates the texture data.
+// UpdateTexture    : Updates texture data.
 // -----------------+
 EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *pTexInfo)
 {
-	// Download a mipmap
-	boolean updatemipmap = true;
-	static RGBA_t   tex[2048*2048];
-	const GLvoid   *ptex = tex;
-	INT32             w, h;
-	GLuint texnum = 0;
+	// Upload a texture
+	GLuint num = pTexInfo->downloaded;
+	boolean update = true;
 
-	if (!pTexInfo->downloaded)
+	INT32 w = pTexInfo->width, h = pTexInfo->height;
+	INT32 i, j;
+
+	const GLubyte *pImgData = (const GLubyte *)pTexInfo->data;
+	const GLvoid *ptex = NULL;
+	RGBA_t *tex = NULL;
+
+	// Generate a new texture name.
+	if (!num)
 	{
-		pglGenTextures(1, &texnum);
-		pTexInfo->downloaded = texnum;
-		updatemipmap = false;
+		pglGenTextures(1, &num);
+		pTexInfo->downloaded = num;
+		update = false;
 	}
-	else
-		texnum = pTexInfo->downloaded;
 
-	//GL_DBG_Printf ("DownloadMipmap %d %x\n",(INT32)texnum,pTexInfo->data);
+	//GL_DBG_Printf("UpdateTexture %d %x\n", (INT32)num, pImgData);
 
-	w = pTexInfo->width;
-	h = pTexInfo->height;
-
-	if (w*h > 2048*2048 && pTexInfo->format != GL_TEXFMT_RGBA)
-		I_Error("Tried to convert too big texture: %dx%d", w, h);
-
-	if ((pTexInfo->format == GL_TEXFMT_P_8) ||
-		(pTexInfo->format == GL_TEXFMT_AP_88))
+	if ((pTexInfo->format == GL_TEXFMT_P_8) || (pTexInfo->format == GL_TEXFMT_AP_88))
 	{
-		const GLubyte *pImgData = (const GLubyte *)pTexInfo->data;
-		INT32 i, j;
+		AllocTextureBuffer(pTexInfo);
+		ptex = tex = textureBuffer;
 
 		for (j = 0; j < h; j++)
 		{
@@ -1552,20 +1562,18 @@ EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *pTexInfo)
 						tex[w*j+i].s.alpha = *pImgData;
 					pImgData++;
 				}
-
 			}
 		}
 	}
 	else if (pTexInfo->format == GL_TEXFMT_RGBA)
 	{
-		// corona test : passed as ARGB 8888, which is not in glide formats
-		// Hurdler: not used for coronas anymore, just for dynamic lighting
-		ptex = pTexInfo->data;
+		// Directly upload the texture data without any kind of conversion.
+		ptex = pImgData;
 	}
 	else if (pTexInfo->format == GL_TEXFMT_ALPHA_INTENSITY_88)
 	{
-		const GLubyte *pImgData = (const GLubyte *)pTexInfo->data;
-		INT32 i, j;
+		AllocTextureBuffer(pTexInfo);
+		ptex = tex = textureBuffer;
 
 		for (j = 0; j < h; j++)
 		{
@@ -1582,8 +1590,8 @@ EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *pTexInfo)
 	}
 	else if (pTexInfo->format == GL_TEXFMT_ALPHA_8) // Used for fade masks
 	{
-		const GLubyte *pImgData = (const GLubyte *)pTexInfo->data;
-		INT32 i, j;
+		AllocTextureBuffer(pTexInfo);
+		ptex = tex = textureBuffer;
 
 		for (j = 0; j < h; j++)
 		{
@@ -1598,11 +1606,10 @@ EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *pTexInfo)
 		}
 	}
 	else
-		GL_MSG_Warning ("SetTexture(bad format) %ld\n", pTexInfo->format);
+		GL_MSG_Warning("UpdateTexture: bad format %d\n", pTexInfo->format);
 
-	// the texture number was already generated by pglGenTextures
-	pglBindTexture(GL_TEXTURE_2D, texnum);
-	tex_downloaded = texnum;
+	pglBindTexture(GL_TEXTURE_2D, num);
+	tex_downloaded = num;
 
 	// disable texture filtering on any texture that has holes so there's no dumb borders or blending issues
 	if (pTexInfo->flags & TF_TRANSPARENT)
@@ -1631,7 +1638,7 @@ EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *pTexInfo)
 		}
 		else
 		{
-			if (updatemipmap)
+			if (update)
 				pglTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, ptex);
 			else
 				pglTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE_ALPHA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, ptex);
@@ -1652,7 +1659,7 @@ EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *pTexInfo)
 		}
 		else
 		{
-			if (updatemipmap)
+			if (update)
 				pglTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, ptex);
 			else
 				pglTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, ptex);
@@ -1672,7 +1679,7 @@ EXPORT void HWRAPI(UpdateTexture) (GLMipmap_t *pTexInfo)
 		}
 		else
 		{
-			if (updatemipmap)
+			if (update)
 				pglTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, ptex);
 			else
 				pglTexImage2D(GL_TEXTURE_2D, 0, textureformatGL, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, ptex);
@@ -1958,6 +1965,7 @@ static void Shader_CompileError(const char *message, GLuint program, INT32 shade
 }
 
 // code that is common between DrawPolygon and DrawIndexedTriangles
+// DrawScreenTexture also can use this function for fancier screen texture drawing
 // the corona thing is there too, i have no idea if that stuff works with DrawIndexedTriangles and batching
 static void PreparePolygon(FSurfaceInfo *pSurf, FOutVector *pOutVerts, FBITFIELD PolyFlags)
 {
@@ -2971,7 +2979,7 @@ EXPORT void HWRAPI(FlushScreenTextures) (void)
 		screenTextures[i] = 0;
 }
 
-EXPORT void HWRAPI(DrawScreenTexture)(int tex)
+EXPORT void HWRAPI(DrawScreenTexture)(int tex, FSurfaceInfo *surf, FBITFIELD polyflags)
 {
 	float xfix, yfix;
 	INT32 texsize = 512;
@@ -3008,7 +3016,10 @@ EXPORT void HWRAPI(DrawScreenTexture)(int tex)
 	pglClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	pglBindTexture(GL_TEXTURE_2D, screenTextures[tex]);
-	Shader_SetUniforms(NULL, NULL, NULL, NULL); // prepare shader, if it is enabled
+	if (surf)
+		PreparePolygon(surf, NULL, polyflags);
+	else
+		Shader_SetUniforms(NULL, NULL, NULL, NULL); // prepare shader, if it is enabled
 	pglColor4ubv(white);
 
 	pglTexCoordPointer(2, GL_FLOAT, 0, fix);
@@ -3019,7 +3030,8 @@ EXPORT void HWRAPI(DrawScreenTexture)(int tex)
 }
 
 // Do screen fades!
-EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd)
+EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd, FSurfaceInfo *surf,
+		FBITFIELD polyFlags)
 {
 	INT32 texsize = 512;
 	float xfix, yfix;
@@ -3043,6 +3055,12 @@ EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd)
 		1.0f, 0.0f,
 		1.0f, 1.0f
 	};
+
+	int firstScreen;
+	if (surf && surf->PolyColor.s.alpha == 255)
+		firstScreen = wipeEnd; // it's a tinted fade-in, we need wipeEnd
+	else
+		firstScreen = wipeStart;
 
 	// look for power of two that is large enough for the screen
 	while (texsize < screen_width || texsize < screen_height)
@@ -3068,43 +3086,55 @@ EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd)
 	SetBlend(PF_Modulated|PF_NoDepthTest);
 	pglEnable(GL_TEXTURE_2D);
 
-	// Draw the original screen
-	pglBindTexture(GL_TEXTURE_2D, screenTextures[wipeStart]);
+	pglBindTexture(GL_TEXTURE_2D, screenTextures[firstScreen]);
 	pglColor4ubv(white);
 	pglTexCoordPointer(2, GL_FLOAT, 0, fix);
 	pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
 	pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	SetBlend(PF_Modulated|PF_Translucent|PF_NoDepthTest);
+	if (surf)
+	{
+		// Draw fade mask to screen using surf and polyFlags
+		// Used for colormap/tinted wipes.
+		pglBindTexture(GL_TEXTURE_2D, fademaskdownloaded);
+		pglTexCoordPointer(2, GL_FLOAT, 0, defaultST);
+		pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
+		PreparePolygon(surf, NULL, polyFlags);
+		pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	}
+	else // Blend wipeEnd into screen with the fade mask
+	{
+		SetBlend(PF_Modulated|PF_Translucent|PF_NoDepthTest);
 
-	// Draw the end screen that fades in
-	pglActiveTexture(GL_TEXTURE0);
-	pglEnable(GL_TEXTURE_2D);
-	pglBindTexture(GL_TEXTURE_2D, screenTextures[wipeEnd]);
-	pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		// Draw the end screen that fades in
+		pglActiveTexture(GL_TEXTURE0);
+		pglEnable(GL_TEXTURE_2D);
+		pglBindTexture(GL_TEXTURE_2D, screenTextures[wipeEnd]);
+		pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-	pglActiveTexture(GL_TEXTURE1);
-	pglEnable(GL_TEXTURE_2D);
-	pglBindTexture(GL_TEXTURE_2D, fademaskdownloaded);
+		pglActiveTexture(GL_TEXTURE1);
+		pglEnable(GL_TEXTURE_2D);
+		pglBindTexture(GL_TEXTURE_2D, fademaskdownloaded);
 
-	pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-	// const float defaultST[8]
+		// const float defaultST[8]
 
-	pglClientActiveTexture(GL_TEXTURE0);
-	pglTexCoordPointer(2, GL_FLOAT, 0, fix);
-	pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
-	pglClientActiveTexture(GL_TEXTURE1);
-	pglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	pglTexCoordPointer(2, GL_FLOAT, 0, defaultST);
-	pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		pglClientActiveTexture(GL_TEXTURE0);
+		pglTexCoordPointer(2, GL_FLOAT, 0, fix);
+		pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
+		pglClientActiveTexture(GL_TEXTURE1);
+		pglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		pglTexCoordPointer(2, GL_FLOAT, 0, defaultST);
+		pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	pglDisable(GL_TEXTURE_2D); // disable the texture in the 2nd texture unit
-	pglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		pglDisable(GL_TEXTURE_2D); // disable the texture in the 2nd texture unit
+		pglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	pglActiveTexture(GL_TEXTURE0);
-	pglClientActiveTexture(GL_TEXTURE0);
-	tex_downloaded = screenTextures[wipeEnd];
+		pglActiveTexture(GL_TEXTURE0);
+		pglClientActiveTexture(GL_TEXTURE0);
+		tex_downloaded = screenTextures[wipeEnd];
+	}
 }
 
 // Create a texture from the screen.

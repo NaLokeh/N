@@ -2,7 +2,7 @@
 //-----------------------------------------------------------------------------
 //
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 2014-2021 by Sonic Team Junior.
+// Copyright (C) 2014-2022 by Sonic Team Junior.
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License
@@ -177,7 +177,9 @@ boolean OglSdlSurface(INT32 w, INT32 h)
 			// Also set the renderer variable back to software so the next launch won't
 			// repeat this error.
 			CV_StealthSet(&cv_renderer, "Software");
-			I_Error("OpenGL Error: Failed to access the GPU. There may be an issue with your graphics drivers.");
+			I_Error("OpenGL Error: Failed to access the GPU. Possible reasons include:\n"
+					"- GPU vendor has dropped OpenGL support on your GPU and OS. (Old GPU?)\n"
+					"- GPU drivers are missing or broken. You may need to update your drivers.");
 		}
 	}
 	first_init = true;
@@ -232,7 +234,7 @@ void OglSdlFinishUpdate(boolean waitvbl)
 	//			effects that want to take the old screen can do so after this
 	// Generic2 has the screen image without palette rendering brightness adjustments.
 	// Using that here will prevent brightness adjustments being applied twice.
-	DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2);
+	DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2, NULL, 0);
 }
 
 EXPORT void HWRAPI(OglSdlSetPalette) (RGBA_t *palette)

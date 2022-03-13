@@ -1,7 +1,7 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2021 by Sonic Team Junior.
+// Copyright (C) 1999-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -132,6 +132,7 @@ void HWR_UnlockCachedPatch(GLPatch_t *gpatch);
 void HWR_SetPalette(RGBA_t *palette);
 void HWR_SetMapPalette(void);
 UINT32 HWR_CreateLightTable(UINT8 *lighttable);
+UINT32 HWR_GetLightTableID(extracolormap_t *colormap);
 void HWR_ClearLightTables(void);
 
 

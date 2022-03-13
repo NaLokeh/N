@@ -1,7 +1,7 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2021 by Sonic Team Junior.
+// Copyright (C) 1999-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -55,8 +55,8 @@ EXPORT void HWRAPI(SetTransform) (FTransform *ptransform);
 EXPORT INT32 HWRAPI(GetTextureUsed) (void);
 
 EXPORT void HWRAPI(FlushScreenTextures) (void);
-EXPORT void HWRAPI(DoScreenWipe) (int wipeStart, int wipeEnd);
-EXPORT void HWRAPI(DrawScreenTexture) (int tex);
+EXPORT void HWRAPI(DoScreenWipe) (int wipeStart, int wipeEnd, FSurfaceInfo *surf, FBITFIELD polyFlags);
+EXPORT void HWRAPI(DrawScreenTexture) (int tex, FSurfaceInfo *surf, FBITFIELD polyflags);
 EXPORT void HWRAPI(MakeScreenTexture) (int tex);
 EXPORT void HWRAPI(DrawScreenFinalTexture) (int tex, int width, int height);
 
