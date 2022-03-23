@@ -1,7 +1,7 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2021 by Sonic Team Junior.
+// Copyright (C) 1999-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -30,6 +30,7 @@
 #include "../st_stuff.h"
 #include "../p_local.h" // stplyr
 #include "../g_game.h" // players
+#include "../f_finale.h" // fade color factors
 
 #include <fcntl.h>
 #include "../i_video.h"  // for rendermode != render_glide
@@ -347,19 +348,16 @@ void HWR_DrawStretchyFixedPatch(patch_t *gpatch, fixed_t x, fixed_t y, fixed_t p
 	v[2].t = v[3].t = hwrPatch->max_t;
 
 	// clip it since it is used for bunny scroll in doom I
-	if (blendmode)
-		flags = HWR_GetBlendModeFlag(blendmode+1)|PF_NoDepthTest;
-	else
-		flags = PF_Translucent|PF_NoDepthTest;
+	flags = HWR_GetBlendModeFlag(blendmode+1)|PF_NoDepthTest;
 
 	if (alphalevel)
 	{
 		FSurfaceInfo Surf;
 		Surf.PolyColor.s.red = Surf.PolyColor.s.green = Surf.PolyColor.s.blue = 0xff;
 
-		if (alphalevel == 10) Surf.PolyColor.s.alpha = softwaretranstogl_lo[st_translucency];
-		else if (alphalevel == 11) Surf.PolyColor.s.alpha = softwaretranstogl[st_translucency];
-		else if (alphalevel == 12) Surf.PolyColor.s.alpha = softwaretranstogl_hi[st_translucency];
+		if (alphalevel == 10) Surf.PolyColor.s.alpha = softwaretranstogl_lo[st_translucency]; // V_HUDTRANSHALF
+		else if (alphalevel == 11) Surf.PolyColor.s.alpha = softwaretranstogl[st_translucency]; // V_HUDTRANS
+		else if (alphalevel == 12) Surf.PolyColor.s.alpha = softwaretranstogl_hi[st_translucency]; // V_HUDTRANSDOUBLE
 		else Surf.PolyColor.s.alpha = softwaretranstogl[10-alphalevel];
 		flags |= PF_Modulated;
 		HWD.pfnDrawPolygon(&Surf, v, 4, flags);
@@ -644,19 +642,16 @@ void HWR_DrawCroppedPatch(patch_t *gpatch, fixed_t x, fixed_t y, fixed_t pscale,
 	}
 
 	// clip it since it is used for bunny scroll in doom I
-	if (blendmode)
-		flags = HWR_GetBlendModeFlag(blendmode+1)|PF_NoDepthTest;
-	else
-		flags = PF_Translucent|PF_NoDepthTest;
+	flags = HWR_GetBlendModeFlag(blendmode+1)|PF_NoDepthTest;
 
 	if (alphalevel)
 	{
 		FSurfaceInfo Surf;
 		Surf.PolyColor.s.red = Surf.PolyColor.s.green = Surf.PolyColor.s.blue = 0xff;
 
-		if (alphalevel == 10) Surf.PolyColor.s.alpha = softwaretranstogl_lo[st_translucency];
-		else if (alphalevel == 11) Surf.PolyColor.s.alpha = softwaretranstogl[st_translucency];
-		else if (alphalevel == 12) Surf.PolyColor.s.alpha = softwaretranstogl_hi[st_translucency];
+		if (alphalevel == 10) Surf.PolyColor.s.alpha = softwaretranstogl_lo[st_translucency]; // V_HUDTRANSHALF
+		else if (alphalevel == 11) Surf.PolyColor.s.alpha = softwaretranstogl[st_translucency]; // V_HUDTRANS
+		else if (alphalevel == 12) Surf.PolyColor.s.alpha = softwaretranstogl_hi[st_translucency]; // V_HUDTRANSDOUBLE
 		else Surf.PolyColor.s.alpha = softwaretranstogl[10-alphalevel];
 
 		flags |= PF_Modulated;
@@ -789,6 +784,7 @@ void HWR_FadeScreenMenuBack(UINT16 color, UINT8 strength)
 {
 	FOutVector  v[4];
 	FSurfaceInfo Surf;
+	FBITFIELD poly_flags = PF_NoTexture|PF_Modulated|PF_NoDepthTest;
 
 	v[0].x = v[3].x = -1.0f;
 	v[2].x = v[1].x =  1.0f;
@@ -801,18 +797,59 @@ void HWR_FadeScreenMenuBack(UINT16 color, UINT8 strength)
 	v[0].t = v[1].t = 1.0f;
 	v[2].t = v[3].t = 0.0f;
 
-	if (color & 0xFF00) // Do COLORMAP fade.
+	if (color & 0xFF00) // Special fade options
 	{
-		Surf.PolyColor.rgba = UINT2RGBA(0x01010160);
-		Surf.PolyColor.s.alpha = (strength*8);
+		UINT16 option = color & 0x0F00;
+		if (option == 0x0A00 || option == 0x0B00) // Tinted fades
+		{
+			INT32 r, g, b;
+			int fade = strength * 8;
+
+			r = FADEREDFACTOR*fade/10;
+			g = FADEGREENFACTOR*fade/10;
+			b = FADEBLUEFACTOR*fade/10;
+
+			Surf.PolyColor.s.red = min(r, 255);
+			Surf.PolyColor.s.green = min(g, 255);
+			Surf.PolyColor.s.blue = min(b, 255);
+			Surf.PolyColor.s.alpha = 255;
+
+			if (option == 0x0A00) // Tinted subtractive fade
+				poly_flags |= PF_ReverseSubtract;
+			else if (option == 0x0B00) // Tinted additive fade
+				poly_flags |= PF_Additive;
+		}
+		else // COLORMAP fade
+		{
+			if (HWR_ShouldUsePaletteRendering())
+			{
+				const hwdscreentexture_t scr_tex = HWD_SCREENTEXTURE_GENERIC2;
+
+				Surf.LightTableId = HWR_GetLightTableID(NULL);
+				Surf.LightInfo.light_level = strength;
+				HWD.pfnMakeScreenTexture(scr_tex);
+				HWD.pfnSetShader(HWR_GetShaderFromTarget(SHADER_UI_COLORMAP_FADE));
+				HWD.pfnDrawScreenTexture(scr_tex, &Surf, PF_ColorMapped|PF_NoDepthTest);
+				HWD.pfnUnSetShader();
+
+				return;
+			}
+			else
+			{
+				Surf.PolyColor.rgba = UINT2RGBA(0x01010160);
+				Surf.PolyColor.s.alpha = (strength*8);
+				poly_flags |= PF_Translucent;
+			}
+		}
 	}
 	else // Do TRANSMAP** fade.
 	{
 		RGBA_t *palette = HWR_GetTexturePalette();
 		Surf.PolyColor.rgba = palette[color&0xFF].rgba;
 		Surf.PolyColor.s.alpha = softwaretranstogl[strength];
+		poly_flags |= PF_Translucent;
 	}
-	HWD.pfnDrawPolygon(&Surf, v, 4, PF_NoTexture|PF_Modulated|PF_Translucent|PF_NoDepthTest);
+	HWD.pfnDrawPolygon(&Surf, v, 4, poly_flags);
 }
 
 // -----------------+

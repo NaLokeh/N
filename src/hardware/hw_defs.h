@@ -1,7 +1,7 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2021 by Sonic Team Junior.
+// Copyright (C) 1999-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -154,8 +154,10 @@ enum
 	SHADER_FOG,
 	SHADER_SKY,
 	SHADER_PALETTE_POSTPROCESS,
+	SHADER_UI_COLORMAP_FADE,
+	SHADER_UI_TINTED_WIPE,
 
-	NUMSHADERTARGETS,
+	NUMSHADERTARGETS
 };
 
 // Maximum amount of shader programs
@@ -347,7 +349,7 @@ enum hwdscreentexture
 	HWD_SCREENTEXTURE_WIPE_START, // source image for the wipe/fade effect
 	HWD_SCREENTEXTURE_WIPE_END,   // destination image for the wipe/fade effect
 	HWD_SCREENTEXTURE_GENERIC1,   // underwater/heat effect, intermission background
-	HWD_SCREENTEXTURE_GENERIC2,   // screen before palette rendering's postprocessing
+	HWD_SCREENTEXTURE_GENERIC2,   // palette-based colormap fade, screen before palette rendering's postprocessing
 	HWD_SCREENTEXTURE_GENERIC3,   // screen after palette rendering's postprocessing
 	NUMSCREENTEXTURES,            // (generic3 is unused if palette rendering is disabled)
 };

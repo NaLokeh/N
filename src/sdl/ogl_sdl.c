@@ -2,7 +2,7 @@
 //-----------------------------------------------------------------------------
 //
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 2014-2021 by Sonic Team Junior.
+// Copyright (C) 2014-2022 by Sonic Team Junior.
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License
@@ -234,7 +234,7 @@ void OglSdlFinishUpdate(boolean waitvbl)
 	//			effects that want to take the old screen can do so after this
 	// Generic2 has the screen image without palette rendering brightness adjustments.
 	// Using that here will prevent brightness adjustments being applied twice.
-	DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2);
+	DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2, NULL, 0);
 }
 
 EXPORT void HWRAPI(OglSdlSetPalette) (RGBA_t *palette)
