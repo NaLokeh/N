@@ -1,7 +1,7 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
 // Copyright (C) 1998-2000 by DooM Legacy Team.
-// Copyright (C) 1999-2021 by Sonic Team Junior.
+// Copyright (C) 1999-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -1495,6 +1495,32 @@ UINT32 HWR_CreateLightTable(UINT8 *lighttable)
 	id = HWD.pfnCreateLightTable(hw_lighttable);
 	Z_Free(hw_lighttable);
 	return id;
+}
+
+// get hwr lighttable id for colormap, create it if it doesn't already exist
+UINT32 HWR_GetLightTableID(extracolormap_t *colormap)
+{
+	boolean default_colormap = false;
+	if (!colormap)
+	{
+		colormap = R_GetDefaultColormap(); // a place to store the hw lighttable id
+		// alternatively could just store the id in a global variable if there are issues
+		default_colormap = true;
+	}
+
+	// create hw lighttable if there isn't one
+	if (!colormap->gl_lighttable_id)
+	{
+		UINT8 *colormap_pointer;
+
+		if (default_colormap)
+			colormap_pointer = colormaps; // don't actually use the data from the "default colormap"
+		else
+			colormap_pointer = colormap->colormap;
+		colormap->gl_lighttable_id = HWR_CreateLightTable(colormap_pointer);
+	}
+
+	return colormap->gl_lighttable_id;
 }
 
 // Note: all hardware lighttable ids assigned before this

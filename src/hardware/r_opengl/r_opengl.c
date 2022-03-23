@@ -1,6 +1,6 @@
 // SONIC ROBO BLAST 2
 //-----------------------------------------------------------------------------
-// Copyright (C) 1998-2021 by Sonic Team Junior.
+// Copyright (C) 1998-2022 by Sonic Team Junior.
 //
 // This program is free software distributed under the
 // terms of the GNU General Public License, version 2.
@@ -617,9 +617,9 @@ typedef enum
 	gluniform_fade_end,
 
 	// palette rendering
-	gluniform_screen_palette_tex,
-	gluniform_palette_lookup_tex,
-	gluniform_lighttable_tex,
+	gluniform_palette_tex, // 1d texture containing a palette
+	gluniform_palette_lookup_tex, // 3d texture containing the rgb->index lookup table
+	gluniform_lighttable_tex, // 2d texture containing a light table
 
 	// misc.
 	gluniform_leveltime,
@@ -1181,11 +1181,11 @@ EXPORT void HWRAPI(ReadScreenTexture) (int tex, UINT8 *dst_data)
 	// and draw generic2 back after reading the framebuffer.
 	// this hack is for some reason **much** faster than the simple solution of using glGetTexImage.
 	if (tex != HWD_SCREENTEXTURE_GENERIC2)
-		DrawScreenTexture(tex);
+		DrawScreenTexture(tex, NULL, 0);
 	pglPixelStorei(GL_PACK_ALIGNMENT, 1);
 	pglReadPixels(0, 0, screen_width, screen_height, GL_RGB, GL_UNSIGNED_BYTE, dst_data);
 	if (tex != HWD_SCREENTEXTURE_GENERIC2)
-		DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2);
+		DrawScreenTexture(HWD_SCREENTEXTURE_GENERIC2, NULL, 0);
 	// Flip image upside down.
 	// In other words, convert OpenGL's "bottom->top" row order into "top->bottom".
 	for(i = 0; i < screen_height/2; i++)
@@ -1917,7 +1917,7 @@ static boolean Shader_CompileProgram(gl_shader_t *shader, GLint i)
 	shader->uniforms[gluniform_fade_end] = GETUNI("fade_end");
 
 	// palette rendering
-	shader->uniforms[gluniform_screen_palette_tex] = GETUNI("screen_palette_tex");
+	shader->uniforms[gluniform_palette_tex] = GETUNI("palette_tex");
 	shader->uniforms[gluniform_palette_lookup_tex] = GETUNI("palette_lookup_tex");
 	shader->uniforms[gluniform_lighttable_tex] = GETUNI("lighttable_tex");
 
@@ -1933,7 +1933,7 @@ static boolean Shader_CompileProgram(gl_shader_t *shader, GLint i)
 	pglUseProgram(shader->program);
 
 	// texture unit numbers for the samplers used for palette rendering
-	UNIFORM_1(shader->uniforms[gluniform_screen_palette_tex], 2, pglUniform1i);
+	UNIFORM_1(shader->uniforms[gluniform_palette_tex], 2, pglUniform1i);
 	UNIFORM_1(shader->uniforms[gluniform_palette_lookup_tex], 1, pglUniform1i);
 	UNIFORM_1(shader->uniforms[gluniform_lighttable_tex], 2, pglUniform1i);
 
@@ -1964,6 +1964,7 @@ static void Shader_CompileError(const char *message, GLuint program, INT32 shade
 }
 
 // code that is common between DrawPolygon and DrawIndexedTriangles
+// DrawScreenTexture also can use this function for fancier screen texture drawing
 // the corona thing is there too, i have no idea if that stuff works with DrawIndexedTriangles and batching
 static void PreparePolygon(FSurfaceInfo *pSurf, FOutVector *pOutVerts, FBITFIELD PolyFlags)
 {
@@ -2977,7 +2978,7 @@ EXPORT void HWRAPI(FlushScreenTextures) (void)
 		screenTextures[i] = 0;
 }
 
-EXPORT void HWRAPI(DrawScreenTexture)(int tex)
+EXPORT void HWRAPI(DrawScreenTexture)(int tex, FSurfaceInfo *surf, FBITFIELD polyflags)
 {
 	float xfix, yfix;
 	INT32 texsize = 512;
@@ -3014,8 +3015,9 @@ EXPORT void HWRAPI(DrawScreenTexture)(int tex)
 	pglClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 	pglBindTexture(GL_TEXTURE_2D, screenTextures[tex]);
-	Shader_SetUniforms(NULL, NULL, NULL, NULL); // prepare shader, if it is enabled
-	pglColor4ubv(white);
+	PreparePolygon(surf, NULL, surf ? polyflags : (PF_NoDepthTest));
+	if (!surf)
+		pglColor4ubv(white);
 
 	pglTexCoordPointer(2, GL_FLOAT, 0, fix);
 	pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
@@ -3025,7 +3027,8 @@ EXPORT void HWRAPI(DrawScreenTexture)(int tex)
 }
 
 // Do screen fades!
-EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd)
+EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd, FSurfaceInfo *surf,
+		FBITFIELD polyFlags)
 {
 	INT32 texsize = 512;
 	float xfix, yfix;
@@ -3049,6 +3052,12 @@ EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd)
 		1.0f, 0.0f,
 		1.0f, 1.0f
 	};
+
+	int firstScreen;
+	if (surf && surf->PolyColor.s.alpha == 255)
+		firstScreen = wipeEnd; // it's a tinted fade-in, we need wipeEnd
+	else
+		firstScreen = wipeStart;
 
 	// look for power of two that is large enough for the screen
 	while (texsize < screen_width || texsize < screen_height)
@@ -3074,43 +3083,55 @@ EXPORT void HWRAPI(DoScreenWipe)(int wipeStart, int wipeEnd)
 	SetBlend(PF_Modulated|PF_NoDepthTest);
 	pglEnable(GL_TEXTURE_2D);
 
-	// Draw the original screen
-	pglBindTexture(GL_TEXTURE_2D, screenTextures[wipeStart]);
+	pglBindTexture(GL_TEXTURE_2D, screenTextures[firstScreen]);
 	pglColor4ubv(white);
 	pglTexCoordPointer(2, GL_FLOAT, 0, fix);
 	pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
 	pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	SetBlend(PF_Modulated|PF_Translucent|PF_NoDepthTest);
+	if (surf)
+	{
+		// Draw fade mask to screen using surf and polyFlags
+		// Used for colormap/tinted wipes.
+		pglBindTexture(GL_TEXTURE_2D, fademaskdownloaded);
+		pglTexCoordPointer(2, GL_FLOAT, 0, defaultST);
+		pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
+		PreparePolygon(surf, NULL, polyFlags);
+		pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	}
+	else // Blend wipeEnd into screen with the fade mask
+	{
+		SetBlend(PF_Modulated|PF_Translucent|PF_NoDepthTest);
 
-	// Draw the end screen that fades in
-	pglActiveTexture(GL_TEXTURE0);
-	pglEnable(GL_TEXTURE_2D);
-	pglBindTexture(GL_TEXTURE_2D, screenTextures[wipeEnd]);
-	pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		// Draw the end screen that fades in
+		pglActiveTexture(GL_TEXTURE0);
+		pglEnable(GL_TEXTURE_2D);
+		pglBindTexture(GL_TEXTURE_2D, screenTextures[wipeEnd]);
+		pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-	pglActiveTexture(GL_TEXTURE1);
-	pglEnable(GL_TEXTURE_2D);
-	pglBindTexture(GL_TEXTURE_2D, fademaskdownloaded);
+		pglActiveTexture(GL_TEXTURE1);
+		pglEnable(GL_TEXTURE_2D);
+		pglBindTexture(GL_TEXTURE_2D, fademaskdownloaded);
 
-	pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		pglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
-	// const float defaultST[8]
+		// const float defaultST[8]
 
-	pglClientActiveTexture(GL_TEXTURE0);
-	pglTexCoordPointer(2, GL_FLOAT, 0, fix);
-	pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
-	pglClientActiveTexture(GL_TEXTURE1);
-	pglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	pglTexCoordPointer(2, GL_FLOAT, 0, defaultST);
-	pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		pglClientActiveTexture(GL_TEXTURE0);
+		pglTexCoordPointer(2, GL_FLOAT, 0, fix);
+		pglVertexPointer(3, GL_FLOAT, 0, screenVerts);
+		pglClientActiveTexture(GL_TEXTURE1);
+		pglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		pglTexCoordPointer(2, GL_FLOAT, 0, defaultST);
+		pglDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
-	pglDisable(GL_TEXTURE_2D); // disable the texture in the 2nd texture unit
-	pglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		pglDisable(GL_TEXTURE_2D); // disable the texture in the 2nd texture unit
+		pglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	pglActiveTexture(GL_TEXTURE0);
-	pglClientActiveTexture(GL_TEXTURE0);
-	tex_downloaded = screenTextures[wipeEnd];
+		pglActiveTexture(GL_TEXTURE0);
+		pglClientActiveTexture(GL_TEXTURE0);
+		tex_downloaded = screenTextures[wipeEnd];
+	}
 }
 
 // Create a texture from the screen.
@@ -3202,6 +3223,7 @@ EXPORT void HWRAPI(DrawScreenFinalTexture)(int tex, int width, int height)
 	clearColour.red = clearColour.green = clearColour.blue = 0;
 	clearColour.alpha = 1;
 	ClearBuffer(true, false, &clearColour);
+	SetBlend(PF_NoDepthTest);
 	pglBindTexture(GL_TEXTURE_2D, screenTextures[tex]);
 
 	pglColor4ubv(white);

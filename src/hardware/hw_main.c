@@ -183,31 +183,9 @@ void HWR_Lighting(FSurfaceInfo *Surface, INT32 light_level, extracolormap_t *col
 	Surface->LightInfo.fade_end = (colormap != NULL) ? colormap->fadeend : 31;
 
 	if (HWR_ShouldUsePaletteRendering())
-	{
-		boolean default_colormap = false;
-		if (!colormap)
-		{
-			colormap = R_GetDefaultColormap(); // a place to store the hw lighttable id
-			// alternatively could just store the id in a global variable if there are issues
-			default_colormap = true;
-		}
-		// create hw lighttable if there isn't one
-		if (!colormap->gl_lighttable_id)
-		{
-			UINT8 *colormap_pointer;
-
-			if (default_colormap)
-				colormap_pointer = colormaps; // don't actually use the data from the "default colormap"
-			else
-				colormap_pointer = colormap->colormap;
-			colormap->gl_lighttable_id = HWR_CreateLightTable(colormap_pointer);
-		}
-		Surface->LightTableId = colormap->gl_lighttable_id;
-	}
+		Surface->LightTableId = HWR_GetLightTableID(colormap);
 	else
-	{
 		Surface->LightTableId = 0;
-	}
 }
 
 UINT8 HWR_FogBlockAlpha(INT32 light, extracolormap_t *colormap) // Let's see if this can work
@@ -494,9 +472,6 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 	//                     Actually it only works on Walls and Planes
 	HWD.pfnSetTransform(&atransform);
 
-	// Reset the shader state.
-	HWR_SetShaderState();
-
 	ps_numbspcalls.value.i = 0;
 	ps_numpolyobjects.value.i = 0;
 	PS_START_TIMING(ps_bsptime);
@@ -718,20 +693,23 @@ static CV_PossibleValue_t glpalettedepth_cons_t[] = {{16, "16 bits"}, {24, "24 b
 consvar_t cv_glpaletterendering = CVAR_INIT ("gr_paletterendering", "Off", CV_SAVE|CV_CALL, CV_OnOff, CV_glpaletterendering_OnChange);
 consvar_t cv_glpalettedepth = CVAR_INIT ("gr_palettedepth", "16 bits", CV_SAVE|CV_CALL, glpalettedepth_cons_t, CV_glpalettedepth_OnChange);
 
+#define ONLY_IF_GL_LOADED if (vid.glstate != VID_GL_LIBRARY_LOADED) return;
+
 static void CV_glfiltermode_OnChange(void)
 {
-	if (rendermode == render_opengl)
-		HWD.pfnSetSpecialState(HWD_SET_TEXTUREFILTERMODE, cv_glfiltermode.value);
+	ONLY_IF_GL_LOADED
+	HWD.pfnSetSpecialState(HWD_SET_TEXTUREFILTERMODE, cv_glfiltermode.value);
 }
 
 static void CV_glanisotropic_OnChange(void)
 {
-	if (rendermode == render_opengl)
-		HWD.pfnSetSpecialState(HWD_SET_TEXTUREANISOTROPICMODE, cv_glanisotropicmode.value);
+	ONLY_IF_GL_LOADED
+	HWD.pfnSetSpecialState(HWD_SET_TEXTUREANISOTROPICMODE, cv_glanisotropicmode.value);
 }
 
 static void CV_glmodellighting_OnChange(void)
 {
+	ONLY_IF_GL_LOADED
 	// if shaders have been compiled, then they now need to be recompiled.
 	if (gl_shadersavailable)
 		HWR_CompileShaders();
@@ -739,6 +717,7 @@ static void CV_glmodellighting_OnChange(void)
 
 static void CV_glpaletterendering_OnChange(void)
 {
+	ONLY_IF_GL_LOADED
 	if (gl_shadersavailable)
 	{
 		HWR_CompileShaders();
@@ -748,6 +727,7 @@ static void CV_glpaletterendering_OnChange(void)
 
 static void CV_glpalettedepth_OnChange(void)
 {
+	ONLY_IF_GL_LOADED
 	// refresh the screen palette
 	if (HWR_ShouldUsePaletteRendering())
 		HWR_SetPalette(pLocalPalette);
@@ -755,6 +735,8 @@ static void CV_glpalettedepth_OnChange(void)
 
 static void CV_glshaders_OnChange(void)
 {
+	ONLY_IF_GL_LOADED
+	HWR_SetShaderState();
 	if (cv_glpaletterendering.value)
 	{
 		// can't do palette rendering without shaders, so update the state if needed
@@ -822,6 +804,7 @@ void HWR_Startup(void)
 #endif
 
 		gl_shadersavailable = HWR_InitShaders();
+		HWR_SetShaderState();
 		HWR_LoadAllCustomShaders();
 		HWR_TogglePaletteRendering();
 	}
@@ -996,7 +979,7 @@ void HWR_EndScreenWipe(void)
 
 void HWR_DrawIntermissionBG(void)
 {
-	HWD.pfnDrawScreenTexture(HWD_SCREENTEXTURE_GENERIC1);
+	HWD.pfnDrawScreenTexture(HWD_SCREENTEXTURE_GENERIC1, NULL, 0);
 }
 
 //
@@ -1041,13 +1024,28 @@ void HWR_DoWipe(UINT8 wipenum, UINT8 scrnnum)
 		return;
 
 	HWR_GetFadeMask(wipelumpnum);
-	HWD.pfnDoScreenWipe(HWD_SCREENTEXTURE_WIPE_START, HWD_SCREENTEXTURE_WIPE_END);
-}
+	if (wipestyle == WIPESTYLE_COLORMAP && HWR_UseShader())
+	{
+		FSurfaceInfo surf = {0};
+		FBITFIELD polyflags = PF_Modulated|PF_NoDepthTest;
 
-void HWR_DoTintedWipe(UINT8 wipenum, UINT8 scrnnum)
-{
-	// It does the same thing
-	HWR_DoWipe(wipenum, scrnnum);
+		polyflags |= (wipestyleflags & WSF_TOWHITE) ? PF_Additive : PF_ReverseSubtract;
+		surf.PolyColor.s.red = FADEREDFACTOR;
+		surf.PolyColor.s.green = FADEGREENFACTOR;
+		surf.PolyColor.s.blue = FADEBLUEFACTOR;
+		// polycolor alpha communicates fadein / fadeout to the shader and the backend
+		surf.PolyColor.s.alpha = (wipestyleflags & WSF_FADEIN) ? 255 : 0;
+
+		HWD.pfnSetShader(HWR_GetShaderFromTarget(SHADER_UI_TINTED_WIPE));
+		HWD.pfnDoScreenWipe(HWD_SCREENTEXTURE_WIPE_START, HWD_SCREENTEXTURE_WIPE_END,
+			&surf, polyflags);
+		HWD.pfnUnSetShader();
+	}
+	else
+	{
+		HWD.pfnDoScreenWipe(HWD_SCREENTEXTURE_WIPE_START, HWD_SCREENTEXTURE_WIPE_END,
+			NULL, 0);
+	}
 }
 
 void HWR_MakeScreenFinalTexture(void)
