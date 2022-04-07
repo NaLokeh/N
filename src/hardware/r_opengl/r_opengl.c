@@ -66,7 +66,6 @@ static  GLuint      tex_downloaded  = 0;
 static  GLuint      lt_downloaded   = 0; // currently bound lighttable texture
 static  GLfloat     fov             = 90.0f;
 static  FBITFIELD   CurrentPolyFlags;
-static  GLint       gl_stencil_ref  = 0;
 
 // Linked list of all textures.
 static FTextureInfo *TexCacheTail = NULL;
@@ -2278,33 +2277,30 @@ EXPORT void HWRAPI(SetSpecialState) (hwdspecialstate_t IdState, INT32 Value)
 				Flush(); //??? if we want to change filter mode by texture, remove this
 			break;
 
-		case HWD_SET_STENCIL_MODE:
-			switch (Value)
-			{
-				case HWD_STENCIL_INACTIVE:
-					pglStencilFunc(GL_ALWAYS, gl_stencil_ref, 0xFF);
-					pglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-					break;
-				case HWD_STENCIL_PORTAL_BEGIN:
-					pglStencilFunc(GL_EQUAL, gl_stencil_ref, 0xFF);
-					pglStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-					break;
-				case HWD_STENCIL_PORTAL_INSIDE:
-					pglStencilFunc(GL_EQUAL, gl_stencil_ref, 0xFF);
-					pglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-					break;
-				case HWD_STENCIL_PORTAL_FINISH:
-					pglStencilFunc(GL_EQUAL, gl_stencil_ref, 0xFF);
-					pglStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
-					break;
-			}
-			break;
-
-		case HWD_SET_STENCIL_LEVEL:
-			gl_stencil_ref = Value;
-			break;
-
 		default:
+			break;
+	}
+}
+
+EXPORT void HWRAPI(SetStencilMode) (hwdstencilmode_t mode, INT32 ref)
+{
+	switch (mode)
+	{
+		case HWD_STENCIL_INACTIVE:
+			pglStencilFunc(GL_ALWAYS, ref, 0xFF);
+			pglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+			break;
+		case HWD_STENCIL_PORTAL_BEGIN:
+			pglStencilFunc(GL_EQUAL, ref, 0xFF);
+			pglStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+			break;
+		case HWD_STENCIL_PORTAL_INSIDE:
+			pglStencilFunc(GL_EQUAL, ref, 0xFF);
+			pglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+			break;
+		case HWD_STENCIL_PORTAL_FINISH:
+			pglStencilFunc(GL_EQUAL, ref, 0xFF);
+			pglStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
 			break;
 	}
 }

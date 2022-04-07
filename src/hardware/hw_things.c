@@ -24,9 +24,6 @@ static void HWR_ProjectPrecipitationSprite(precipmobj_t *thing);
 // sprites are drawn after all wall and planes are rendered, so that
 // sprite translucency effects apply on the rendered view (instead of the background sky!!)
 
-//UINT32 gl_visspritecount;
-//static gl_vissprite_t *gl_visspritechunks[MAXVISSPRITES >> VISSPRITECHUNKBITS] = {NULL};
-
 typedef struct
 {
 	FOutVector verts[4];
@@ -43,8 +40,7 @@ typedef struct
 
 // TODO this array is ~3 megabytes because of linkdrawlist...
 // maybe turn that into a dynamic array
-// TODO magic number 16
-static gl_sprite_state_t state_stack[16] = {0};
+static gl_sprite_state_t state_stack[MAXPORTALS_CAP+1] = {0};
 static int stack_level = 0;
 static gl_sprite_state_t *cst = &state_stack[0]; // current state
 
@@ -60,8 +56,7 @@ void HWR_ClearSprites(void)
 // pushes all sprite rendering state to stack
 void HWR_PushSpriteState(void)
 {
-	// todo magic number 16
-	if (stack_level == 15)
+	if (stack_level == MAXPORTALS_CAP)
 		I_Error("HWR_PushSpriteState: State stack overflow");
 
 	stack_level++;
@@ -106,10 +101,6 @@ static gl_vissprite_t *HWR_NewVisSprite(void)
 // sprite drawing is done. (effectively the z-buffer drawing of linkdraw sprites is delayed)
 // NOTE: This will no longer be necessary once full translucent sorting is implemented, where
 // translucent sprites and surfaces are sorted together.
-
-// this list is used to store data about linkdraw sprites
-//zbuffersprite_t linkdrawlist[MAXVISSPRITES];
-//UINT32 linkdrawcount = 0;
 
 // add the necessary data to the list for delayed z-buffer drawing
 static void HWR_LinkDrawHackAdd(FOutVector *verts, gl_vissprite_t *spr)

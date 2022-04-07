@@ -184,7 +184,6 @@ extern INT32 gl_portal_level;
 extern boolean gl_drawing_stencil;
 extern sector_t *gl_portalcullsector;
 extern line_t *gl_portalclipline;
-extern INT32 gl_portalviewside;
 
 extern boolean gl_printportals;
 extern INT32 gl_debugportal;

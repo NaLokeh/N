@@ -78,9 +78,6 @@ typedef struct
 
 // initial size of drawnode array
 #define DRAWNODES_INIT_SIZE 64
-/*gl_drawnode_t *drawnodes = NULL;
-INT32 numdrawnodes = 0;
-INT32 alloceddrawnodes = 0;*/
 
 typedef struct
 {
@@ -89,10 +86,9 @@ typedef struct
 	INT32 alloceddrawnodes;
 } gl_drawnode_state_t;
 
-// todo magic number 16
 // portal rendering will push and pop this stack
 // to keep multiple drawnode lists around until they're needed
-static gl_drawnode_state_t state_stack[16] = {0};
+static gl_drawnode_state_t state_stack[MAXPORTALS_CAP+1] = {0};
 static int stack_level = 0;
 static gl_drawnode_state_t *cst = &state_stack[0]; // current state
 
@@ -177,8 +173,7 @@ void HWR_AddTransparentPolyobjectFloor(levelflat_t *levelflat, polyobj_t *polyse
 // pushes all drawnode rendering state to stack
 void HWR_PushDrawNodeState(void)
 {
-	// todo magic number 16
-	if (stack_level == 15)
+	if (stack_level == MAXPORTALS_CAP)
 		I_Error("HWR_PushDrawNodeState: State stack overflow");
 
 	stack_level++;
@@ -202,8 +197,6 @@ static int CompareDrawNodePlanes(const void *p1, const void *p2)
 	return ABS(cst->drawnodes[n2].u.plane.fixedheight - viewz) - ABS(cst->drawnodes[n1].u.plane.fixedheight - viewz);
 }
 
-//
-// HWR_RenderDrawNodes
 // Sorts and renders the list of drawnodes for the scene being rendered.
 void HWR_RenderDrawNodes(void)
 {

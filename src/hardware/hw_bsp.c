@@ -119,7 +119,7 @@ static boolean HWR_PortalCheckPointSide(fixed_t x, fixed_t y)
 	P_ClosestPointOnLine(x, y, gl_portalclipline, &closest_point);
 	if (closest_point.x != x || closest_point.y != y)
 	{
-		if (P_PointOnLineSide(x, y, gl_portalclipline) != gl_portalviewside)
+		if (P_PointOnLineSide(x, y, gl_portalclipline) != 1)
 			return true;
 	}
 	return false;

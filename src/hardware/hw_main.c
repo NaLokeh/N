@@ -144,15 +144,13 @@ typedef struct
 	unsigned int capacity;
 } gl_portal_array_t;
 
-// TODO magic number 16
-gl_portal_array_t gl_portal_arrays[16] = {0};
+gl_portal_array_t gl_portal_arrays[MAXPORTALS_CAP+1] = {0};
 
 INT32 gl_portal_level = 0; // portal recursion level
 
 boolean gl_drawing_stencil = false; // used when drawing segs to stencil buffer
 sector_t *gl_portalcullsector = NULL;
 line_t *gl_portalclipline = NULL;
-INT32 gl_portalviewside = 0;
 
 // debug tools
 boolean gl_printportals = false; // print info about portals on this frame
@@ -174,9 +172,6 @@ static void HWR_PortalFrame(gl_portal_t *portal, boolean set_culling)
 	{
 		gl_portalcullsector = portal->clipline->frontsector;
 		gl_portalclipline = portal->clipline;
-		gl_portalviewside = P_PointOnLineSide(viewx, viewy, gl_portalclipline);
-		// TODO check is gl_portalviewside always the same value?
-		// if it is then it's not needed to have this variable
 	}
 }
 
@@ -187,6 +182,38 @@ static gl_portal_array_t *HWR_GetPortalArray(void)
 	if (gl_rendering_skybox)
 		level++;
 	return &gl_portal_arrays[level];
+}
+
+// TODO move to r_main.c next to fixed point functions?
+
+// More precise version of R_PointToAngle2 using floats and atan2.
+static angle_t R_PointToAngle2Precise(fixed_t pviewx, fixed_t pviewy, fixed_t x, fixed_t y)
+{
+	fixed_t dx = x - pviewx;
+	fixed_t dy = y - pviewy;
+	float radians;
+
+	if (!dx && !dy)
+		return 0;
+
+	// no need for correct scale with FIXED_TO_FLOAT here
+	// since we're just calculating the angle
+	radians = atan2(dy, dx);
+
+	return (angle_t)(radians / M_PI * ANGLE_180);
+}
+
+// More precise version of R_PointToDist2 using floats and sqrt.
+static fixed_t R_PointToDist2Precise(fixed_t px2, fixed_t py2, fixed_t px1, fixed_t py1)
+{
+	// float-fixed conversions can be omitted here
+	// because they cancel each other out in this case
+
+	float dx = px1 - px2;
+	float dy = py1 - py2;
+	double result = sqrt(dx*dx + dy*dy);
+
+	return (fixed_t)result;
 }
 
 boolean HWR_AddPortal(line_t *start, line_t *dest, seg_t *seg)
@@ -226,34 +253,40 @@ boolean HWR_AddPortal(line_t *start, line_t *dest, seg_t *seg)
 
 	portal = &array->portals[array->size++];
 
-	dangle = R_PointToAngle2(0,0,dest->dx,dest->dy) - R_PointToAngle2(start->dx,start->dy,0,0);
-
-	// using this order of operations change fixes ante station island portal
+	// Most fixed-point calculations and trigonometric function tables are replaced by
+	// floats and cmath library calls in this part to improve the precision of the
+	// location and angle of the new viewpoint.
+	//
+	// This reduces artefacts on the edges of portals, showing thin lines/pixels
+	// of the underlying graphics. (for example the sky texture) It's not 100%
+	// perfectly aligned and artefact-free, but looks noticeably
+	// better than the original code. I'm not even sure if it's this
+	// code or the nodebuilder or hw_map or something else causing the remaining issues..
+//#define R_PointToAngle2Precise R_PointToAngle2
+//#define R_PointToDist2Precise R_PointToDist2
+	dangle = R_PointToAngle2Precise(0,0,dest->dx,dest->dy) - R_PointToAngle2Precise(start->dx,start->dy,0,0);
 
 	// looking glass center
-	//start_c.x = (start->v1->x + start->v2->x) / 2;
-	//start_c.y = (start->v1->y + start->v2->y) / 2;
 	start_c.x = start->v1->x/2 + start->v2->x/2;
 	start_c.y = start->v1->y/2 + start->v2->y/2;
 
 	// other side center
-	//dest_c.x = (dest->v1->x + dest->v2->x) / 2;
-	//dest_c.y = (dest->v1->y + dest->v2->y) / 2;
 	dest_c.x = dest->v1->x/2 + dest->v2->x/2;
 	dest_c.y = dest->v1->y/2 + dest->v2->y/2;
 
-	disttopoint = R_PointToDist2(start_c.x, start_c.y, viewx, viewy);
-	angtopoint = R_PointToAngle2(start_c.x, start_c.y, viewx, viewy);
+	disttopoint = R_PointToDist2Precise(start_c.x, start_c.y, viewx, viewy);
+	angtopoint = R_PointToAngle2Precise(start_c.x, start_c.y, viewx, viewy);
 	angtopoint += dangle;
 
-	// could using float or double here help with the slight impreciseness of
-	// the view coordinates?
-	//float fang = ((float)angtopoint / 4294967296.0f) * 2.0f * M_PI;
+	float fang = ((float)angtopoint / 4294967296.0f) * 2.0f * M_PI;
 
-	portal->viewx = dest_c.x + FixedMul(FINECOSINE(angtopoint>>ANGLETOFINESHIFT), disttopoint);
-	portal->viewy = dest_c.y + FixedMul(FINESINE(angtopoint>>ANGLETOFINESHIFT), disttopoint);
+	//portal->viewx = dest_c.x + FixedMul(FINECOSINE(angtopoint>>ANGLETOFINESHIFT), disttopoint);
+	//portal->viewy = dest_c.y + FixedMul(FINESINE(angtopoint>>ANGLETOFINESHIFT), disttopoint);
 	//portal->viewx = dest_c.x + FixedMul(FLOAT_TO_FIXED(cos(fang)), disttopoint);
 	//portal->viewy = dest_c.y + FixedMul(FLOAT_TO_FIXED(sin(fang)), disttopoint);
+	// cos and sin are just scaling disttopoint so no need for float-fixed conversions
+	portal->viewx = dest_c.x + (fixed_t)(cos(fang) * disttopoint);
+	portal->viewy = dest_c.y + (fixed_t)(sin(fang) * disttopoint);
 	portal->viewz = viewz + dest->frontsector->floorheight - start->frontsector->floorheight;
 	portal->viewangle = viewangle + dangle;
 	portal->seg = seg;
@@ -348,7 +381,7 @@ UINT8 HWR_FogBlockAlpha(INT32 light, extracolormap_t *colormap) // Let's see if 
 
 	realcolor.rgba = (colormap != NULL) ? colormap->rgba : GL_DEFAULTMIX;
 
-	if (cv_glshaders.value && gl_shadersavailable)
+	if (HWR_UseShader())
 	{
 		surfcolor.s.alpha = (255 - light);
 	}
@@ -434,20 +467,6 @@ FBITFIELD HWR_TranstableToAlpha(INT32 transtablenum, FSurfaceInfo *pSurf)
 	pSurf->PolyColor.s.alpha = HWR_GetTranstableAlpha(transtablenum);
 	return PF_Translucent;
 }
-
-// -----------------+
-// HWR_ClearView : clear the viewwindow, with maximum z value
-// -----------------+
-/*static inline void HWR_ClearView(void)
-{
-	HWD.pfnGClipRect((INT32)gl_viewwindowx,
-	                 (INT32)gl_viewwindowy,
-	                 (INT32)(gl_viewwindowx + gl_viewwidth),
-	                 (INT32)(gl_viewwindowy + gl_viewheight),
-	                 ZCLIP_PLANE);
-	HWD.pfnClearBuffer(false, true, true, 0);
-}*/
-
 
 // -----------------+
 // HWR_SetViewSize  : set projection and scaling values
@@ -576,9 +595,7 @@ static void HWR_PortalClipping(gl_portal_t *portal)
 	gld_clipper_SafeAddClipRange(portal->angle1, portal->angle2);
 }
 
-//
-// Sets the shader state.
-//
+// Tells the backend are shaders being used for 3d rendering.
 static void HWR_SetShaderState(void)
 {
 	HWD.pfnSetSpecialState(HWD_SET_SHADERS, (INT32)HWR_UseShader());
@@ -589,9 +606,6 @@ static void HWR_EnterSkyboxState(void)
 	HWR_PushBatchingState();
 	HWR_PushSpriteState();
 	HWR_PushDrawNodeState();
-	// need to use the next level in the portal arrays
-	// so skybox doesn't interfere with previously collected portals
-	//gl_portal_level++;
 	gl_rendering_skybox = true;
 }
 
@@ -600,8 +614,6 @@ static void HWR_LeaveSkyboxState(void)
 	HWR_PopBatchingState();
 	HWR_PopSpriteState();
 	HWR_PopDrawNodeState();
-	// see above comment
-	//gl_portal_level--;
 	gl_rendering_skybox = false;
 }
 
@@ -615,16 +627,12 @@ static void HWR_RenderPortalSeg(seg_t *seg)
 	gl_drawing_stencil = false;
 	// need to work around the r_opengl PF_Invisible bug with this call
 	// similarly as in the linkdraw hack in HWR_DrawSprites
-	// TODO not completely sure if this is needed, check it? (try without)
 	HWD.pfnSetBlend(PF_Translucent|PF_Occlude|PF_Masked);
 }
 
 static void HWR_SetStencilState(INT32 state)
 {
-	// this order of calls must be used for the stencil
-	// level to take effect correctly
-	HWD.pfnSetSpecialState(HWD_SET_STENCIL_LEVEL, gl_portal_level);
-	HWD.pfnSetSpecialState(HWD_SET_STENCIL_MODE, state);
+	HWD.pfnSetStencilMode(state, gl_portal_level);
 }
 
 // clear the depth buffer from the stenciled area so portal
@@ -632,8 +640,8 @@ static void HWR_SetStencilState(INT32 state)
 // (glClear ignores the stencil buffer so can't be used for this purpose)
 static void HWR_RenderDepthEraser(boolean visible)
 {
-	FOutVector verts[4] = {0}; // TODO not sure if PF_NoAlphaTest is needed?
-	FBITFIELD blendflags = PF_Occlude|PF_NoDepthTest|PF_NoTexture|PF_NoAlphaTest;
+	FOutVector verts[4] = {0};
+	FBITFIELD blendflags = PF_Occlude|PF_NoDepthTest|PF_NoTexture;
 	if (!visible)
 		blendflags |= PF_Invisible;
 	// so this is apparently how you draw the far clipping plane when
@@ -733,7 +741,6 @@ static void HWR_RenderViewpoint(player_t *player, boolean is_skybox, gl_portal_t
 		{
 			//if (gl_printportals)
 			//	CONS_Printf("drawing a skybox\n");
-			// TODO NOTE this probably wont set correct position under portals?
 			R_SkyboxFrame(player);
 			// render skybox while keeping batches, sprites and drawnodes
 			// from the regular viewpoint stashed in the state stacks
@@ -741,7 +748,7 @@ static void HWR_RenderViewpoint(player_t *player, boolean is_skybox, gl_portal_t
 			HWR_RenderViewpoint(player, true, rootportal);
 			HWR_LeaveSkyboxState();
 			// restore (=clear) z-buffer, but only in the portal window
-			if (rootportal)
+			if (rootportal) // unused since skybox-inside-portal is unimplemented
 				HWR_RenderDepthEraser(false);
 			else
 				HWD.pfnClearBuffer(false, true, false, 0);
@@ -1023,6 +1030,9 @@ static CV_PossibleValue_t glpalettedepth_cons_t[] = {{16, "16 bits"}, {24, "24 b
 consvar_t cv_glpaletterendering = CVAR_INIT ("gr_paletterendering", "Off", CV_SAVE|CV_CALL, CV_OnOff, CV_glpaletterendering_OnChange);
 consvar_t cv_glpalettedepth = CVAR_INIT ("gr_palettedepth", "16 bits", CV_SAVE|CV_CALL, glpalettedepth_cons_t, CV_glpalettedepth_OnChange);
 
+// Isolates rendering to one of the top level portals.
+// (Stencil cutting of the portal is also disabled)
+// Use gr_printportals to find the number to use.
 consvar_t cv_gldebugportal = CVAR_INIT ("gr_debugportal", "0", 0, CV_Unsigned, NULL);
 
 consvar_t cv_glskydebug = CVAR_INIT ("gr_skydebug", "0", 0, CV_Unsigned, NULL);
