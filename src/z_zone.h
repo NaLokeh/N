@@ -61,7 +61,7 @@ enum
 	// Tags s.t. PU_LEVEL <= tag < PU_PURGELEVEL are purged at level start
 	PU_LEVEL                 = 50, // static until level exited
 	PU_LEVSPEC               = 51, // a special thinker in a level
-	PU_HWRPLANE              = 52, // if ZPLANALLOC is enabled in hw_bsp.c, this is used to alloc polygons for OpenGL
+	PU_HWRPLANE              = 52, // if ZPLANALLOC is enabled in hw_map.c, this is used to alloc polygons for OpenGL
 
 	// Tags >= PU_PURGELEVEL are purgable whenever needed
 	PU_PURGELEVEL            = 100, // Note: this is never actually used as a tag

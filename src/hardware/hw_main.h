@@ -22,29 +22,26 @@
 
 #include "../m_perfstats.h"
 
-// Startup & Shutdown the hardware mode renderer
-void HWR_Startup(void);
-void HWR_Switch(void);
-void HWR_Shutdown(void);
+// --------
+// hw_cache.c
+// --------
+void HWR_MakePatch(const patch_t *patch, GLPatch_t *grPatch, GLMipmap_t *grMipmap, boolean makebitmap);
 
+// --------
+// hw_draw.c
+// --------
 void HWR_drawAMline(const fline_t *fl, INT32 color);
 void HWR_FadeScreenMenuBack(UINT16 color, UINT8 strength);
 void HWR_DrawConsoleBack(UINT32 color, INT32 height);
 void HWR_DrawTutorialBack(UINT32 color, INT32 boxheight);
-void HWR_RenderSkyboxView(INT32 viewnumber, player_t *player);
-void HWR_RenderPlayerView(INT32 viewnumber, player_t *player);
-void HWR_ClearSkyDome(void);
-void HWR_BuildSkyDome(void);
+
 void HWR_DrawViewBorder(INT32 clearlines);
 void HWR_DrawFlatFill(INT32 x, INT32 y, INT32 w, INT32 h, lumpnum_t flatlumpnum);
-void HWR_InitTextureMapping(void);
-void HWR_SetViewSize(void);
+
 void HWR_DrawPatch(patch_t *gpatch, INT32 x, INT32 y, INT32 option);
 void HWR_DrawStretchyFixedPatch(patch_t *gpatch, fixed_t x, fixed_t y, fixed_t pscale, fixed_t vscale, INT32 option, const UINT8 *colormap);
 void HWR_DrawCroppedPatch(patch_t *gpatch, fixed_t x, fixed_t y, fixed_t pscale, fixed_t vscale, INT32 option, const UINT8 *colormap, fixed_t sx, fixed_t sy, fixed_t w, fixed_t h);
-void HWR_MakePatch(const patch_t *patch, GLPatch_t *grPatch, GLMipmap_t *grMipmap, boolean makebitmap);
-void HWR_CreatePlanePolygons(INT32 bspnum);
-void HWR_CreateStaticLightmaps(INT32 bspnum);
+
 void HWR_DrawFill(INT32 x, INT32 y, INT32 w, INT32 h, INT32 color);
 void HWR_DrawFadeFill(INT32 x, INT32 y, INT32 w, INT32 h, INT32 color, UINT16 actualcolor, UINT8 strength);
 void HWR_DrawConsoleFill(INT32 x, INT32 y, INT32 w, INT32 h, INT32 color, UINT32 actualcolor);	// Lat: separate flags from color since color needs to be an uint to work right.
@@ -52,6 +49,29 @@ void HWR_DrawPic(INT32 x,INT32 y,lumpnum_t lumpnum);
 
 UINT8 *HWR_GetScreenshot(void);
 boolean HWR_Screenshot(const char *pathname);
+
+// --------
+// hw_light.c
+// --------
+void HWR_CreateStaticLightmaps(INT32 bspnum);
+
+// --------
+// hw_map.c
+// --------
+void HWR_CreatePlanePolygons(INT32 bspnum);
+
+// --------
+// hw_main.c
+// --------
+void HWR_Startup(void);
+void HWR_Switch(void);
+void HWR_Shutdown(void);
+
+void HWR_RenderSkyboxView(INT32 viewnumber, player_t *player);
+void HWR_RenderPlayerView(INT32 viewnumber, player_t *player);
+
+void HWR_SetViewSize(void);
+void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox);
 
 void HWR_AddCommands(void);
 void HWR_AddSessionCommands(void);
@@ -74,6 +94,8 @@ UINT8 HWR_GetTranstableAlpha(INT32 transtablenum);
 FBITFIELD HWR_GetBlendModeFlag(INT32 style);
 FBITFIELD HWR_SurfaceBlend(INT32 style, INT32 transtablenum, FSurfaceInfo *pSurf);
 FBITFIELD HWR_TranstableToAlpha(INT32 transtablenum, FSurfaceInfo *pSurf);
+
+void HWR_AddTransparentWall(FOutVector *wallVerts, FSurfaceInfo *pSurf, INT32 texnum, FBITFIELD blend, boolean fogwall, INT32 lightlevel, extracolormap_t *wallcolormap);
 
 boolean HWR_ShouldUsePaletteRendering(void);
 
@@ -107,10 +129,23 @@ extern float gl_viewwidth, gl_viewheight, gl_baseviewwindowy;
 
 extern float gl_viewwindowx, gl_basewindowcentery;
 
+extern seg_t *gl_curline;
+extern side_t *gl_sidedef;
+extern line_t *gl_linedef;
+extern sector_t *gl_frontsector;
+extern sector_t *gl_backsector;
+
 // BP: big hack for a test in lighting ref : 1249753487AB
 extern fixed_t *hwbbox;
 extern FTransform atransform;
 
+extern fixed_t dup_viewx, dup_viewy, dup_viewz;
+extern angle_t dup_viewangle;
+
+extern float gl_viewx, gl_viewy, gl_viewz;
+extern float gl_viewsin, gl_viewcos;
+
+extern float gl_viewludsin, gl_viewludcos;
 
 // Render stats
 extern ps_metric_t ps_hw_skyboxtime;

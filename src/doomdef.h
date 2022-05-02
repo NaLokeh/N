@@ -125,7 +125,7 @@ extern char logfilename[1024];
 #define SRB2APPLICATION "SRB2"
 
 // uncapped ver
-#define UNCAPPEDVERSION "1.0"
+#define UNCAPPEDVERSION "1.1"
 
 //#define DEVELOP // Disable this for release builds to remove excessive cheat commands and enable MD5 checking and stuff, all in one go. :3
 #ifdef DEVELOP
@@ -616,13 +616,6 @@ extern const char *compdate, *comptime, *comprevision, *compbranch;
 
 /// Experimental attempts at preventing MF_PAPERCOLLISION objects from getting stuck in walls.
 //#define PAPER_COLLISIONCORRECTION
-
-/// FINALLY some real clipping that doesn't make walls dissappear AND speeds the game up
-/// (that was the original comment from SRB2CB, sadly it is a lie and actually slows game down)
-/// on the bright side it fixes some weird issues with translucent walls
-/// \note	SRB2CB port.
-///      	SRB2CB itself ported this from PrBoom+
-#define NEWCLIP
 
 /// OpenGL shaders
 #define GL_SHADERS
