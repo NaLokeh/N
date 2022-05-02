@@ -21,6 +21,7 @@
 #include "m_menu.h" // gametype_cons_t
 #include "r_things.h" // skins
 #include "mserv.h" // ms_RoomId
+#include "m_cond.h" // queries about emblems
 #include "z_zone.h"
 #include "byteptr.h"
 #include "stun.h"
@@ -34,7 +35,7 @@
 #endif
 
 // Feel free to provide your own, if you care enough to create another Discord app for this :P
-#define DISCORD_APPID "875107153734680626"
+#define DISCORD_APPID "970061120796774410"
 
 // length of IP strings
 #define IP_SIZE 21
@@ -481,7 +482,7 @@ static void DRPC_EmptyRequests(void)
 --------------------------------------------------*/
 void DRPC_UpdatePresence(void)
 {
-	char detailstr[48+1];
+	char detailstr[64+1];
 
 	char mapimg[8+1];
 	char mapname[5+21+21+2+1];
@@ -562,30 +563,35 @@ void DRPC_UpdatePresence(void)
 		if (Playing())
 		{
 			UINT8 emeraldCount = 0;
-			discordPresence.state = "Single-Player";
+			discordPresence.state = "Singleplayer";
 			
-			if (emeralds == 0)
-				discordPresence.details = "No Chaos Emeralds";
-			else
+			snprintf(detailstr, 20, "%d/%d emblems",
+				M_CountEmblems(), (numemblems + numextraemblems));
+
+			if (emeralds != 0)
 			{
 				for (INT32 i = 0; i < 7; i++) // thanks Monster Iestyn for this math
 					if (emeralds & (1<<i))
 						emeraldCount += 1;
 
 				if (emeraldCount > 1 && emeraldCount < 7 && emeraldCount != 3)
-					discordPresence.details = va("Has %d Chaos Emeralds", emeraldCount);
+					strlcat(detailstr, va(", %d emeralds", emeraldCount), 64);
 				else if (emeraldCount == 1)
-					discordPresence.details = "Has 1 Chaos Emerald";
+					strlcat(detailstr, ", 1 emerald", 64);
 				else if (emeraldCount == 3)
-					discordPresence.details = "Where's that DAMN fourth chaos emerald (Has 3 Emeralds)";
+					// Trivia: the subtitles in Shadow the Hedgehog emphasized "fourth",
+					// even though Jason Griffith emphasized "damn" in this sentence
+					strlcat(detailstr, ", 3 emeralds (where's that damn FOURTH?)", 64);
 				else
-					discordPresence.details = "Has All The 7 Chaos Emeralds";
+					strlcat(detailstr, ", all 7 emeralds!", 64);
 			}
-
+			else
+				strlcat(detailstr, ", no emeralds", 64);
+			discordPresence.details = detailstr;
 
 		}
 		else if (demoplayback && !titledemo)
-			discordPresence.state = "Watching Replay";
+			discordPresence.state = "Watching a replay";
 		else
 			discordPresence.state = "Menu";
 	}
