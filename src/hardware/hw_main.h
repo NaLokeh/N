@@ -71,7 +71,7 @@ void HWR_RenderSkyboxView(INT32 viewnumber, player_t *player);
 void HWR_RenderPlayerView(INT32 viewnumber, player_t *player);
 
 void HWR_SetViewSize(void);
-void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox);
+void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox, boolean side_effect);
 
 void HWR_AddCommands(void);
 void HWR_AddSessionCommands(void);
@@ -124,6 +124,9 @@ extern consvar_t cv_glslopecontrast;
 extern consvar_t cv_glbatching;
 extern consvar_t cv_glpaletterendering;
 extern consvar_t cv_glpalettedepth;
+extern consvar_t cv_gldebugportal;
+
+extern consvar_t cv_glskydebug;
 
 extern float gl_viewwidth, gl_viewheight, gl_baseviewwindowy;
 
@@ -138,9 +141,6 @@ extern sector_t *gl_backsector;
 // BP: big hack for a test in lighting ref : 1249753487AB
 extern fixed_t *hwbbox;
 extern FTransform atransform;
-
-extern fixed_t dup_viewx, dup_viewy, dup_viewz;
-extern angle_t dup_viewangle;
 
 extern float gl_viewx, gl_viewy, gl_viewz;
 extern float gl_viewsin, gl_viewcos;
@@ -170,5 +170,22 @@ extern boolean gl_maploaded;
 extern boolean gl_maptexturesloaded;
 extern boolean gl_sessioncommandsadded;
 extern boolean gl_shadersavailable;
+
+extern boolean gl_rendering_skybox;
+
+/* Portal stuff */
+
+// TODO probably put this to a separate file?
+
+boolean HWR_AddPortal(line_t *start, line_t *dest, seg_t *seg);
+
+extern INT32 gl_portal_level;
+
+extern boolean gl_drawing_stencil;
+extern sector_t *gl_portalcullsector;
+extern line_t *gl_portalclipline;
+
+extern boolean gl_printportals;
+extern INT32 gl_debugportal;
 
 #endif

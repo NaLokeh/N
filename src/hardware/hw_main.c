@@ -100,15 +100,13 @@ boolean gl_shadersavailable = false;
 // Whether the internal state is set to palette rendering or not.
 static boolean gl_palette_rendering_state = false;
 
+boolean gl_rendering_skybox = false;
+
 // --------------------------------------------------------------------------
 //                                              STUFF FOR THE PROJECTION CODE
 // --------------------------------------------------------------------------
 
 FTransform atransform;
-// duplicates of the main code, set after R_SetupFrame() passed them into sharedstruct,
-// copied here for local use
-fixed_t dup_viewx, dup_viewy, dup_viewz;
-angle_t dup_viewangle;
 
 float gl_viewx, gl_viewy, gl_viewz;
 float gl_viewsin, gl_viewcos;
@@ -118,6 +116,194 @@ float gl_viewludsin, gl_viewludcos; // look up down kik test
 static float gl_fovlud;
 
 static angle_t gl_aimingangle;
+
+/* Portal stuff */
+
+// TODO probably put this to a separate file?
+
+typedef struct
+{
+	// Viewport.
+	fixed_t viewx;
+	fixed_t viewy;
+	fixed_t viewz;
+	angle_t viewangle;
+
+	seg_t *seg; // seg that is used for drawing to the stencil buffer
+	line_t *clipline;
+
+	// angles for the left and right edges of the portal
+	// relative to the viewpoint
+	angle_t angle1;
+	angle_t angle2;
+} gl_portal_t;
+
+#define INIT_PORTAL_ARRAY_SIZE 4
+typedef struct
+{
+	gl_portal_t *portals;
+	unsigned int size;
+	unsigned int capacity;
+} gl_portal_array_t;
+
+gl_portal_array_t gl_portal_arrays[MAXPORTALS_CAP+1] = {0};
+
+INT32 gl_portal_level = 0; // portal recursion level
+
+boolean gl_drawing_stencil = false; // used when drawing segs to stencil buffer
+sector_t *gl_portalcullsector = NULL;
+line_t *gl_portalclipline = NULL;
+
+// debug tools
+boolean gl_printportals = false; // print info about portals on this frame
+INT32 gl_debugportal = 0; // hide main viewpoint and only render this portal without stencil
+
+static void HWR_PortalFrame(gl_portal_t *portal, boolean set_culling)
+{
+	viewx = portal->viewx;
+	viewy = portal->viewy;
+	viewz = portal->viewz;
+
+	viewangle = portal->viewangle;
+	viewsin = FINESINE(viewangle>>ANGLETOFINESHIFT);
+	viewcos = FINECOSINE(viewangle>>ANGLETOFINESHIFT);
+
+	// set_culling will be true if RenderBSPNode is about to be called
+	// so need to enable portal culling for that
+	if (set_culling)
+	{
+		gl_portalcullsector = portal->clipline->frontsector;
+		gl_portalclipline = portal->clipline;
+	}
+}
+
+// get currently used portal array
+static gl_portal_array_t *HWR_GetPortalArray(void)
+{
+	INT32 level = gl_portal_level;
+	if (gl_rendering_skybox)
+		level++;
+	return &gl_portal_arrays[level];
+}
+
+// TODO move to r_main.c next to fixed point functions?
+
+// More precise version of R_PointToAngle2 using floats and atan2.
+static angle_t R_PointToAngle2Precise(fixed_t pviewx, fixed_t pviewy, fixed_t x, fixed_t y)
+{
+	fixed_t dx = x - pviewx;
+	fixed_t dy = y - pviewy;
+	float radians;
+
+	if (!dx && !dy)
+		return 0;
+
+	// no need for correct scale with FIXED_TO_FLOAT here
+	// since we're just calculating the angle
+	radians = atan2(dy, dx);
+
+	return (angle_t)(radians / M_PI * ANGLE_180);
+}
+
+// More precise version of R_PointToDist2 using floats and sqrt.
+static fixed_t R_PointToDist2Precise(fixed_t px2, fixed_t py2, fixed_t px1, fixed_t py1)
+{
+	// float-fixed conversions can be omitted here
+	// because they cancel each other out in this case
+
+	float dx = px1 - px2;
+	float dy = py1 - py2;
+	double result = sqrt(dx*dx + dy*dy);
+
+	return (fixed_t)result;
+}
+
+boolean HWR_AddPortal(line_t *start, line_t *dest, seg_t *seg)
+{
+	gl_portal_array_t *array;
+	gl_portal_t *portal;
+
+	angle_t dangle;
+	fixed_t disttopoint;
+	angle_t angtopoint;
+	vertex_t dest_c, start_c;
+
+	if ((gl_portal_level + gl_rendering_skybox) >= cv_maxportals.value ||
+			(gl_debugportal &&
+			(gl_debugportal != (start-lines) || gl_portal_level)))
+	{
+		return false;
+	}
+	if (gl_debugportal)
+		gl_debugportal = -1; // skip other portal segs from the same line
+
+	array = HWR_GetPortalArray();
+
+	// yet another dynamic array
+	if (!array->portals)
+	{
+		array->capacity = INIT_PORTAL_ARRAY_SIZE;
+		array->portals = Z_Malloc(sizeof(gl_portal_t) * array->capacity, PU_LEVEL,
+				&array->portals);
+	}
+	else if (array->size == array->capacity)
+	{
+		array->capacity *= 2;
+		array->portals = Z_Realloc(array->portals, sizeof(gl_portal_t) * array->capacity,
+				PU_LEVEL, &array->portals);
+	}
+
+	portal = &array->portals[array->size++];
+
+	// Most fixed-point calculations and trigonometric function tables are replaced by
+	// floats and cmath library calls in this part to improve the precision of the
+	// location and angle of the new viewpoint.
+	//
+	// This reduces artefacts on the edges of portals, showing thin lines/pixels
+	// of the underlying graphics. (for example the sky texture) It's not 100%
+	// perfectly aligned and artefact-free, but looks noticeably
+	// better than the original code. I'm not even sure if it's this
+	// code or the nodebuilder or hw_map or something else causing the remaining issues..
+//#define R_PointToAngle2Precise R_PointToAngle2
+//#define R_PointToDist2Precise R_PointToDist2
+	dangle = R_PointToAngle2Precise(0,0,dest->dx,dest->dy) - R_PointToAngle2Precise(start->dx,start->dy,0,0);
+
+	// looking glass center
+	start_c.x = start->v1->x/2 + start->v2->x/2;
+	start_c.y = start->v1->y/2 + start->v2->y/2;
+
+	// other side center
+	dest_c.x = dest->v1->x/2 + dest->v2->x/2;
+	dest_c.y = dest->v1->y/2 + dest->v2->y/2;
+
+	disttopoint = R_PointToDist2Precise(start_c.x, start_c.y, viewx, viewy);
+	angtopoint = R_PointToAngle2Precise(start_c.x, start_c.y, viewx, viewy);
+	angtopoint += dangle;
+
+	float fang = ((float)angtopoint / 4294967296.0f) * 2.0f * M_PI;
+
+	//portal->viewx = dest_c.x + FixedMul(FINECOSINE(angtopoint>>ANGLETOFINESHIFT), disttopoint);
+	//portal->viewy = dest_c.y + FixedMul(FINESINE(angtopoint>>ANGLETOFINESHIFT), disttopoint);
+	//portal->viewx = dest_c.x + FixedMul(FLOAT_TO_FIXED(cos(fang)), disttopoint);
+	//portal->viewy = dest_c.y + FixedMul(FLOAT_TO_FIXED(sin(fang)), disttopoint);
+	// cos and sin are just scaling disttopoint so no need for float-fixed conversions
+	portal->viewx = dest_c.x + (fixed_t)(cos(fang) * disttopoint);
+	portal->viewy = dest_c.y + (fixed_t)(sin(fang) * disttopoint);
+	portal->viewz = viewz + dest->frontsector->floorheight - start->frontsector->floorheight;
+	portal->viewangle = viewangle + dangle;
+	portal->seg = seg;
+	portal->clipline = dest;
+
+	portal->angle1 = R_PointToAngle64(seg->v1->x, seg->v1->y) + dangle;
+	portal->angle2 = R_PointToAngle64(seg->v2->x, seg->v2->y) + dangle;
+
+	return true;
+}
+
+static void HWR_ClearPortals(void)
+{
+	HWR_GetPortalArray()->size = 0;
+}
 
 // ==========================================================================
 // Lighting
@@ -197,7 +383,7 @@ UINT8 HWR_FogBlockAlpha(INT32 light, extracolormap_t *colormap) // Let's see if 
 
 	realcolor.rgba = (colormap != NULL) ? colormap->rgba : GL_DEFAULTMIX;
 
-	if (cv_glshaders.value && gl_shadersavailable)
+	if (HWR_UseShader())
 	{
 		surfcolor.s.alpha = (255 - light);
 	}
@@ -285,31 +471,6 @@ FBITFIELD HWR_TranstableToAlpha(INT32 transtablenum, FSurfaceInfo *pSurf)
 }
 
 // -----------------+
-// HWR_ClearView : clear the viewwindow, with maximum z value
-// -----------------+
-static inline void HWR_ClearView(void)
-{
-	//  3--2
-	//  | /|
-	//  |/ |
-	//  0--1
-
-	/// \bug faB - enable depth mask, disable color mask
-
-	HWD.pfnGClipRect((INT32)gl_viewwindowx,
-	                 (INT32)gl_viewwindowy,
-	                 (INT32)(gl_viewwindowx + gl_viewwidth),
-	                 (INT32)(gl_viewwindowy + gl_viewheight),
-	                 ZCLIP_PLANE);
-	HWD.pfnClearBuffer(false, true, 0);
-
-	//disable clip window - set to full size
-	// rem by Hurdler
-	// HWD.pfnGClipRect(0, 0, vid.width, vid.height);
-}
-
-
-// -----------------+
 // HWR_SetViewSize  : set projection and scaling values
 // -----------------+
 void HWR_SetViewSize(void)
@@ -345,8 +506,9 @@ void HWR_SetViewSize(void)
 
 // Set view aiming, for the sky dome, the skybox,
 // and the normal view, all with a single function.
-void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox)
+void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox, boolean side_effect)
 {
+	angle_t temp_aimingangle;
 	// 1 = always on
 	// 2 = chasecam only
 	if (cv_glshearing.value == 1 || (cv_glshearing.value == 2 && R_IsViewpointThirdPerson(player, skybox)))
@@ -354,28 +516,23 @@ void HWR_SetTransformAiming(FTransform *trans, player_t *player, boolean skybox)
 		fixed_t fixedaiming = AIMINGTODY(aimingangle);
 		trans->viewaiming = FIXED_TO_FLOAT(fixedaiming);
 		trans->shearing = true;
-		gl_aimingangle = 0;
+		temp_aimingangle = 0;
 	}
 	else
 	{
 		trans->shearing = false;
-		gl_aimingangle = aimingangle;
+		temp_aimingangle = aimingangle;
 	}
 
-	trans->anglex = (float)(gl_aimingangle>>ANGLETOFINESHIFT)*(360.0f/(float)FINEANGLES);
+	trans->anglex = (float)(temp_aimingangle>>ANGLETOFINESHIFT)*(360.0f/(float)FINEANGLES);
+	if (side_effect)
+		gl_aimingangle = temp_aimingangle;
 }
 
-//
-// Sets the shader state.
-//
-static void HWR_SetShaderState(void)
+// prepare all transform related variables based on the current "frame"
+// (R_SetupFrame etc)
+static void HWR_PrepareTransform(player_t *player, boolean is_skybox)
 {
-	HWD.pfnSetSpecialState(HWD_SET_SHADERS, (INT32)HWR_UseShader());
-}
-
-static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skybg, boolean postprocess, boolean is_skybox)
-{
-	angle_t a1;
 	const float fpov = FIXED_TO_FLOAT(cv_fov.value+player->fovadd);
 	postimg_t *type;
 
@@ -384,45 +541,15 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 	else
 		type = &postimgtype;
 
-	if (!HWR_ShouldUsePaletteRendering())
-	{
-		// do we really need to save player (is it not the same)?
-		player_t *saved_player = stplyr;
-		stplyr = player;
-		ST_doPaletteStuff();
-		stplyr = saved_player;
-#ifdef ALAM_LIGHTING
-		HWR_SetLights(viewnumber);
-#endif
-	}
-
-	// copy view cam position for local use
-	dup_viewx = viewx;
-	dup_viewy = viewy;
-	dup_viewz = viewz;
-	dup_viewangle = viewangle;
-
-	// set window position
-	gl_centery = gl_basecentery;
-	gl_viewwindowy = gl_baseviewwindowy;
-	gl_windowcentery = gl_basewindowcentery;
-	if (splitscreen && viewnumber == 1)
-	{
-		gl_viewwindowy += (vid.height/2);
-		gl_windowcentery += (vid.height/2);
-	}
-
-	gl_viewx = FIXED_TO_FLOAT(dup_viewx);
-	gl_viewy = FIXED_TO_FLOAT(dup_viewy);
-	gl_viewz = FIXED_TO_FLOAT(dup_viewz);
+	gl_viewx = FIXED_TO_FLOAT(viewx);
+	gl_viewy = FIXED_TO_FLOAT(viewy);
+	gl_viewz = FIXED_TO_FLOAT(viewz);
 	gl_viewsin = FIXED_TO_FLOAT(viewsin);
 	gl_viewcos = FIXED_TO_FLOAT(viewcos);
 
-	//04/01/2000: Hurdler: added for T&L
-	//                     It should replace all other gl_viewxxx when finished
 	memset(&atransform, 0x00, sizeof(FTransform));
 
-	HWR_SetTransformAiming(&atransform, player, is_skybox);
+	HWR_SetTransformAiming(&atransform, player, is_skybox, true);
 	atransform.angley = (float)(viewangle>>ANGLETOFINESHIFT)*(360.0f/(float)FINEANGLES);
 
 	gl_viewludsin = FIXED_TO_FLOAT(FINECOSINE(gl_aimingangle>>ANGLETOFINESHIFT));
@@ -433,9 +560,9 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 	else
 		atransform.flip = false;
 
-	atransform.x      = gl_viewx;  // FIXED_TO_FLOAT(viewx)
-	atransform.y      = gl_viewy;  // FIXED_TO_FLOAT(viewy)
-	atransform.z      = gl_viewz;  // FIXED_TO_FLOAT(viewz)
+	atransform.x      = gl_viewx;
+	atransform.y      = gl_viewy;
+	atransform.z      = gl_viewz;
 	atransform.scalex = 1;
 	atransform.scaley = (float)vid.width/vid.height;
 	atransform.scalez = 1;
@@ -451,44 +578,231 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 	atransform.splitscreen = splitscreen;
 
 	gl_fovlud = (float)(1.0l/tan((double)(fpov*M_PIl/360l)));
+}
 
-	//------------------------------------------------------------------------
-	HWR_ClearView(); // Clears the depth buffer and resets the view I believe
-
-	if (skybg)
-		HWR_DrawSkyBackground(player);
-
-	//Hurdler: it doesn't work in splitscreen mode
-	drawsky = splitscreen;
-
-	HWR_ClearSprites();
-
-	a1 = gld_FrustumAngle(gl_aimingangle);
+// clear clipper and add the current "frustrum" to it
+static void HWR_ResetClipper(void)
+{
+	angle_t a1 = gld_FrustumAngle(gl_aimingangle);
 	gld_clipper_Clear();
 	gld_clipper_SafeAddClipRange(viewangle + a1, viewangle - a1);
 #ifdef HAVE_SPHEREFRUSTRUM
 	gld_FrustrumSetup();
 #endif
+}
 
-	//04/01/2000: Hurdler: added for T&L
-	//                     Actually it only works on Walls and Planes
+// clip the area outside the portal destination window
+static void HWR_PortalClipping(gl_portal_t *portal)
+{
+	gld_clipper_SafeAddClipRange(portal->angle1, portal->angle2);
+}
+
+// Tells the backend are shaders being used for 3d rendering.
+static void HWR_SetShaderState(void)
+{
+	HWD.pfnSetSpecialState(HWD_SET_SHADERS, (INT32)HWR_UseShader());
+}
+
+static void HWR_EnterSkyboxState(void)
+{
+	HWR_PushBatchingState();
+	HWR_PushSpriteState();
+	HWR_PushDrawNodeState();
+	gl_rendering_skybox = true;
+}
+
+static void HWR_LeaveSkyboxState(void)
+{
+	HWR_PopBatchingState();
+	HWR_PopSpriteState();
+	HWR_PopDrawNodeState();
+	gl_rendering_skybox = false;
+}
+
+static void HWR_RenderPortalSeg(seg_t *seg)
+{
+	gl_drawing_stencil = true;
+	gl_curline = seg;
+	gl_frontsector = seg->frontsector;
+	gl_backsector = seg->backsector;
+	HWR_ProcessSeg();
+	gl_drawing_stencil = false;
+	// need to work around the r_opengl PF_Invisible bug with this call
+	// similarly as in the linkdraw hack in HWR_DrawSprites
+	HWD.pfnSetBlend(PF_Translucent|PF_Occlude|PF_Masked);
+}
+
+static void HWR_SetStencilState(INT32 state)
+{
+	HWD.pfnSetStencilMode(state, gl_portal_level);
+}
+
+// clear the depth buffer from the stenciled area so portal
+// content doesn't get clipped by previous buffer content
+// (glClear ignores the stencil buffer so can't be used for this purpose)
+static void HWR_RenderDepthEraser(boolean visible)
+{
+	FOutVector verts[4] = {0};
+	FBITFIELD blendflags = PF_Occlude|PF_NoDepthTest|PF_NoTexture;
+	if (!visible)
+		blendflags |= PF_Invisible;
+	// so this is apparently how you draw the far clipping plane when
+	// pfnSetTransform(NULL) is active
+	const float a = FAR_CLIPPING_PLANE;
+	verts[0].x = -a; verts[0].y = -a; verts[0].z = a;
+	verts[1].x = -a; verts[1].y =  a; verts[1].z = a;
+	verts[2].x =  a; verts[2].y =  a; verts[2].z = a;
+	verts[3].x =  a; verts[3].y = -a; verts[3].z = a;
+	HWD.pfnSetTransform(NULL);
+	HWD.pfnDrawPolygon(NULL, verts, 4, blendflags);
+}
+
+static void HWR_RenderViewpoint(player_t *player, boolean is_skybox, gl_portal_t *rootportal);
+
+static void HWR_RenderPortal(gl_portal_t *portal, gl_portal_t *rootportal, player_t *player, boolean is_skybox)
+{
+	HWR_PushSpriteState();
+	HWR_PushDrawNodeState();
+
+	if (!gl_debugportal)
+	{
+		HWR_SetStencilState(HWD_STENCIL_PORTAL_BEGIN);
+		HWR_RenderPortalSeg(portal->seg);
+	}
+
+	gl_portal_level++;
+	if (!gl_debugportal)
+		HWR_SetStencilState(HWD_STENCIL_PORTAL_INSIDE);
+
+	HWR_RenderDepthEraser(true);
+
+	HWR_PortalFrame(portal, true);
+	HWR_RenderViewpoint(player, is_skybox, portal);
+	// restore previous frame and transform
+	if (rootportal)
+		HWR_PortalFrame(rootportal, false);
+	else if (is_skybox)
+		R_SkyboxFrame(player);
+	else
+		R_SetupFrame(player);
+	HWR_PrepareTransform(player, is_skybox);
 	HWD.pfnSetTransform(&atransform);
+
+	if (!gl_debugportal)
+	{
+		HWR_SetStencilState(HWD_STENCIL_PORTAL_FINISH);
+		HWR_RenderPortalSeg(portal->seg);
+	}
+	gl_portal_level--;
+
+	HWR_PopSpriteState();
+	HWR_PopDrawNodeState();
+}
+
+static void HWR_RenderViewpoint(player_t *player, boolean is_skybox, gl_portal_t *rootportal)
+{
+	unsigned int i;
+	gl_portal_array_t *portal_array;
+
+	HWR_PrepareTransform(player, is_skybox);
+
+	HWR_ClearSprites();
+
+	HWR_ResetClipper();
+	if (rootportal)
+		HWR_PortalClipping(rootportal);
 
 	ps_numbspcalls.value.i = 0;
 	ps_numpolyobjects.value.i = 0;
 	PS_START_TIMING(ps_bsptime);
 
 	validcount++;
+	gl_sky_found = false;
 
-	if (cv_glbatching.value)
-		HWR_StartBatching();
+	HWR_StartBatching();
 
 	HWR_RenderBSPNode((INT32)numnodes-1);
+	// restore portal clipping variables
+	gl_portalcullsector = NULL;
+	gl_portalclipline = NULL;
 
 	PS_STOP_TIMING(ps_bsptime);
 
-	if (cv_glbatching.value)
-		HWR_RenderBatches();
+	if (gl_printportals && !gl_portal_level && !gl_rendering_skybox)
+		CONS_Printf("Portal recursion summary:\n");
+
+	//if (gl_printportals)
+	//	CONS_Printf("%d bsp calls\n", ps_numbspcalls.value.i);
+
+	if (gl_sky_found)
+	{
+		// HWR_DrawSkyBackground is not able to set the texture without
+		// pausing batching first
+		HWR_PauseBatching();
+		if (skyboxmo[0] && cv_skybox.value && !is_skybox && !rootportal && !gl_debugportal)
+		{
+			//if (gl_printportals)
+			//	CONS_Printf("drawing a skybox\n");
+			R_SkyboxFrame(player);
+			// render skybox while keeping batches, sprites and drawnodes
+			// from the regular viewpoint stashed in the state stacks
+			HWR_EnterSkyboxState();
+			HWR_RenderViewpoint(player, true, rootportal);
+			HWR_LeaveSkyboxState();
+			// restore (=clear) z-buffer, but only in the portal window
+			if (rootportal) // unused since skybox-inside-portal is unimplemented
+				HWR_RenderDepthEraser(false);
+			else
+				HWD.pfnClearBuffer(false, true, false, 0);
+			// restore transform
+			if (rootportal)
+				HWR_PortalFrame(rootportal, false);
+			else
+				R_SetupFrame(player);
+			HWR_PrepareTransform(player, is_skybox);
+		}
+		else
+		{
+			HWR_DrawSkyBackground(player);
+		}
+		// turn batching back on
+		HWR_StartBatching();
+	}
+
+	// apply transform to backend now when we're actually drawing to the screen
+	HWD.pfnSetTransform(&atransform);
+
+	HWR_RenderBatches();
+
+	// this is a hacky way to get rid of the main viewpoint for the debugportal
+	// command but maybe simpler than other options
+	if (gl_debugportal && !gl_portal_level)
+		HWD.pfnClearBuffer(true, true, true, 0);
+
+	portal_array = HWR_GetPortalArray();
+	for (i = 0; i < portal_array->size; i++)
+		HWR_RenderPortal(&portal_array->portals[i], rootportal, player, is_skybox);
+	HWR_ClearPortals();
+	// if there was portals, restore stencil state since HWR_RenderPortal
+	// has altered it
+	if (i)
+	{
+		HWR_SetStencilState(gl_portal_level ?
+				HWD_STENCIL_PORTAL_INSIDE : HWD_STENCIL_INACTIVE);
+		if (gl_printportals && !gl_rendering_skybox)
+		{
+			CONS_Printf("%*c%d: %u portals rendered\n", gl_portal_level+1, 'L',
+					gl_portal_level, i);
+		}
+	}
+
+	// hack for debugportal, see earlier comment
+	if (gl_debugportal && !gl_portal_level)
+	{
+		gl_portal_level = 15; // this will make the sprites and drawnodes get discarded
+		HWR_SetStencilState(HWD_STENCIL_PORTAL_INSIDE);
+		gl_portal_level = 0;
+	}
 
 #ifdef ALAM_LIGHTING
 	//14/11/99: Hurdler: moved here because it doesn't work with
@@ -497,9 +811,8 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 #endif
 
 	// Draw MD2 and sprites
-	ps_numsprites.value.i = gl_visspritecount;
 	PS_START_TIMING(ps_hw_spritesorttime);
-	HWR_SortVisSprites();
+	ps_numsprites.value.i = HWR_SortVisSprites();
 	PS_STOP_TIMING(ps_hw_spritesorttime);
 	PS_START_TIMING(ps_hw_spritedrawtime);
 	HWR_DrawSprites();
@@ -515,22 +828,17 @@ static void HWR_RenderViewpoint(INT32 viewnumber, player_t *player, boolean skyb
 	ps_hw_nodedrawtime.value.p = 0;
 	HWR_RenderDrawNodes(); //Hurdler: render 3D water and transparent walls after everything
 
-	HWD.pfnSetTransform(NULL);
-	HWD.pfnUnSetShader();
-
-	if (postprocess)
-		HWR_DoPostProcessor(player);
-
-	// added by Hurdler for correct splitscreen
-	// moved here by hurdler so it works with the new near clipping plane
-	HWD.pfnGClipRect(0, 0, vid.width, vid.height, NZCLIP_PLANE);
+	// hack for debugportal, see earlier comment
+	if (gl_debugportal && !gl_portal_level)
+		HWR_SetStencilState(HWD_STENCIL_INACTIVE);
 }
 
 void HWR_RenderPlayerView(INT32 viewnumber, player_t *player)
 {
-	boolean will_render_skybox, skybg_in_main_viewpoint;
+	// check for new console commands.
+	NetUpdate();
 
-	// Clear the Color Buffer, stops HOMs. Also seems to fix the skybox issue on Intel GPUs.
+	// Clear all screen buffers
 	if (viewnumber == 0) // Only do it if it's the first screen being rendered
 	{
 		FRGBAFloat ClearColor;
@@ -540,33 +848,62 @@ void HWR_RenderPlayerView(INT32 viewnumber, player_t *player)
 		ClearColor.blue = 0.0f;
 		ClearColor.alpha = 1.0f;
 
-		HWD.pfnClearBuffer(true, false, &ClearColor);
+		HWD.pfnClearBuffer(true, true, true, &ClearColor);
 	}
 
-	// check for new console commands.
-	NetUpdate();
+	if (!HWR_ShouldUsePaletteRendering())
+	{
+		// do we really need to save player (is it not the same)?
+		player_t *saved_player = stplyr;
+		stplyr = player;
+		ST_doPaletteStuff();
+		stplyr = saved_player;
+#ifdef ALAM_LIGHTING
+		HWR_SetLights(viewnumber);
+#endif
+	}
 
-	// True if there's a skybox object, skyboxes are on and the sky is visible
-	will_render_skybox = (skyboxmo[0] && cv_skybox.value && drawsky);
-	// If sky is visible and no skybox is being drawn, then the sky background is used
-	skybg_in_main_viewpoint = (drawsky && !will_render_skybox);
+	// set window position
+	gl_centery = gl_basecentery;
+	gl_viewwindowy = gl_baseviewwindowy;
+	gl_windowcentery = gl_basewindowcentery;
+	if (splitscreen && viewnumber == 1)
+	{
+		gl_viewwindowy += (vid.height/2);
+		gl_windowcentery += (vid.height/2);
+	}
+
+	HWD.pfnGClipRect((INT32)gl_viewwindowx,
+	                 (INT32)gl_viewwindowy,
+	                 (INT32)(gl_viewwindowx + gl_viewwidth),
+	                 (INT32)(gl_viewwindowy + gl_viewheight),
+	                 ZCLIP_PLANE);
 
 	// The water surface shader needs the leveltime.
 	if (cv_glshaders.value)
 		HWD.pfnSetShaderInfo(HWD_SHADERINFO_LEVELTIME, (INT32)leveltime);
 
-	PS_START_TIMING(ps_hw_skyboxtime);
-	if (will_render_skybox)
-	{
-		// Draw the skybox before the camera viewpoint
-		R_SkyboxFrame(player);
-		HWR_RenderViewpoint(viewnumber, player, true, false, true);
-	}
+	PS_START_TIMING(ps_hw_skyboxtime); // TODO put these somewhere
 	PS_STOP_TIMING(ps_hw_skyboxtime);
+
+	if (cv_gldebugportal.value && cv_debug)
+		gl_debugportal = cv_gldebugportal.value;
 
 	R_SetupFrame(player);
 	framecount++; // var used by timedemo
-	HWR_RenderViewpoint(viewnumber, player, skybg_in_main_viewpoint, true, false);
+	HWR_RenderViewpoint(player, false, NULL);
+
+	gl_printportals = false;
+	gl_debugportal = 0;
+
+	HWD.pfnSetTransform(NULL);
+	HWD.pfnUnSetShader();
+
+	HWR_DoPostProcessor(player);
+
+	// added by Hurdler for correct splitscreen
+	// moved here by hurdler so it works with the new near clipping plane
+	HWD.pfnGClipRect(0, 0, vid.width, vid.height, NZCLIP_PLANE);
 }
 
 // Returns whether palette rendering is "actually enabled."
@@ -695,6 +1032,13 @@ static CV_PossibleValue_t glpalettedepth_cons_t[] = {{16, "16 bits"}, {24, "24 b
 consvar_t cv_glpaletterendering = CVAR_INIT ("gr_paletterendering", "Off", CV_SAVE|CV_CALL, CV_OnOff, CV_glpaletterendering_OnChange);
 consvar_t cv_glpalettedepth = CVAR_INIT ("gr_palettedepth", "16 bits", CV_SAVE|CV_CALL, glpalettedepth_cons_t, CV_glpalettedepth_OnChange);
 
+// Isolates rendering to one of the top level portals.
+// (Stencil cutting of the portal is also disabled)
+// Use gr_printportals to find the number to use.
+consvar_t cv_gldebugportal = CVAR_INIT ("gr_debugportal", "0", 0, CV_Unsigned, NULL);
+
+consvar_t cv_glskydebug = CVAR_INIT ("gr_skydebug", "0", 0, CV_Unsigned, NULL);
+
 #define ONLY_IF_GL_LOADED if (vid.glstate != VID_GL_LIBRARY_LOADED) return;
 
 static void CV_glfiltermode_OnChange(void)
@@ -746,6 +1090,19 @@ static void CV_glshaders_OnChange(void)
 	}
 }
 
+static void Command_Glprintportals_f(void)
+{
+	if (cv_debug)
+	{
+		gl_printportals = true;
+		CONS_Printf("List of top level portals:\n");
+	}
+	else
+	{
+		CONS_Printf("This command is only available in devmode.\n");
+	}
+}
+
 //added by Hurdler: console varibale that are saved
 void HWR_AddCommands(void)
 {
@@ -776,6 +1133,11 @@ void HWR_AddCommands(void)
 
 	CV_RegisterVar(&cv_glpaletterendering);
 	CV_RegisterVar(&cv_glpalettedepth);
+
+	COM_AddCommand("gr_printportals", Command_Glprintportals_f);
+	CV_RegisterVar(&cv_gldebugportal);
+
+	CV_RegisterVar(&cv_glskydebug);
 }
 
 void HWR_AddSessionCommands(void)

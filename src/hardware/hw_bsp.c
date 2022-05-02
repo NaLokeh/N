@@ -17,7 +17,7 @@
 #include "../r_local.h"
 #include "../z_zone.h"
 
-boolean drawsky = true;
+boolean gl_sky_found = true;
 
 // From PrBoom:
 //
@@ -106,14 +106,30 @@ static boolean CheckClip(seg_t * seg, sector_t * afrontsector, sector_t * abacks
 	return false;
 }
 
-// -----------------+
-// HWR_AddLine      : Clips the given segment and adds any visible pieces to the line list.
-// Notes            : gl_cursectorlight is set to the current subsector -> sector -> light value
-//                  : (it may be mixed with the wall's own flat colour in the future ...)
-// -----------------+
+// returns true if the point is on the correct (viewable) side of the
+// portal destination line
+static boolean HWR_PortalCheckPointSide(fixed_t x, fixed_t y)
+{
+	// we are checking if the point is on the viewable side of the portal exit.
+	// being exactly on the portal exit line is not enough to pass the test.
+	// P_PointOnLineSide could behave differently from this expectation on this case,
+	// so first check if the point is precisely on the line, and then if not, check the side.
+
+	vertex_t closest_point;
+	P_ClosestPointOnLine(x, y, gl_portalclipline, &closest_point);
+	if (closest_point.x != x || closest_point.y != y)
+	{
+		if (P_PointOnLineSide(x, y, gl_portalclipline) != 1)
+			return true;
+	}
+	return false;
+}
+
+// Handles seg clipping and renders the seg if it could be visible.
 static void HWR_AddLine(seg_t * line)
 {
 	angle_t angle1, angle2;
+	boolean skipseg = false;
 
 	// SoM: Backsector needs to be run through R_FakeFlat
 	static sector_t tempsec;
@@ -147,6 +163,42 @@ static void HWR_AddLine(seg_t * line)
 	checkforemptylines = true;
 
 	gl_backsector = line->backsector;
+
+	// do extra checks on the seg when rendering portals:
+	// don't render segs that are behind the portal destination line
+	if (gl_portalclipline &&
+				!HWR_PortalCheckPointSide(line->v1->x, line->v1->y) &&
+				!HWR_PortalCheckPointSide(line->v2->x, line->v2->y))
+	{
+		return;
+	}
+
+	// Portal line
+	if (line->linedef->special == 40 && line->side == 0)
+	{
+		size_t p;
+		mtag_t tag = Tag_FGet(&line->linedef->tags);
+		INT32 li1 = line->linedef-lines;
+		INT32 li2;
+
+		for (p = 0; (li2 = Tag_Iterate_Lines(tag, p)) >= 0; p++)
+		{
+			// Skip invalid lines.
+			if ((tag != Tag_FGet(&lines[li2].tags)) || (lines[li1].special != lines[li2].special) || (li1 == li2))
+				continue;
+
+			// call will bail and return false if recursion limit is reached
+			if (HWR_AddPortal(&lines[li1], &lines[li2], line))
+			{
+				skipseg = true; // TODO could this cause unintentional disappearing of some walls?
+				if (gl_printportals && !gl_portal_level && !gl_rendering_skybox)
+				{
+					// print some info about first level portals
+					CONS_Printf("line %d -> line %d\n", li1, li2);
+				}
+			}
+		}
+	}
 
 	if (!line->backsector)
 	{
@@ -188,7 +240,8 @@ static void HWR_AddLine(seg_t * line)
 			return;
 	}
 
-	HWR_ProcessSeg(); // Doesn't need arguments because they're defined globally :D
+	if (!skipseg)
+		HWR_ProcessSeg(); // Doesn't need arguments because they're defined globally :D
 }
 
 // HWR_CheckBBox
@@ -206,16 +259,16 @@ static boolean HWR_CheckBBox(fixed_t *bspcoord)
 
 	// Find the corners of the box
 	// that define the edges from current viewpoint.
-	if (dup_viewx <= bspcoord[BOXLEFT])
+	if (viewx <= bspcoord[BOXLEFT])
 		boxpos = 0;
-	else if (dup_viewx < bspcoord[BOXRIGHT])
+	else if (viewx < bspcoord[BOXRIGHT])
 		boxpos = 1;
 	else
 		boxpos = 2;
 
-	if (dup_viewy >= bspcoord[BOXTOP])
+	if (viewy >= bspcoord[BOXTOP])
 		boxpos |= 0;
-	else if (dup_viewy > bspcoord[BOXBOTTOM])
+	else if (viewy > bspcoord[BOXBOTTOM])
 		boxpos |= 1<<2;
 	else
 		boxpos |= 2<<2;
@@ -232,6 +285,26 @@ static boolean HWR_CheckBBox(fixed_t *bspcoord)
 	angle2 = R_PointToAngle64(px2, py2);
 	return gld_clipper_SafeCheckRange(angle2, angle1);
 }
+
+// Check if bounding box is (partially or fully) in the correct side
+// of the portal destination.
+static boolean HWR_PortalCheckBBox(fixed_t *bspcoord)
+{
+	if (!gl_portalclipline)
+		return true;
+
+	if (HWR_PortalCheckPointSide(bspcoord[BOXLEFT], bspcoord[BOXTOP]) ||
+			HWR_PortalCheckPointSide(bspcoord[BOXLEFT], bspcoord[BOXBOTTOM]) ||
+			HWR_PortalCheckPointSide(bspcoord[BOXRIGHT], bspcoord[BOXTOP]) ||
+			HWR_PortalCheckPointSide(bspcoord[BOXRIGHT], bspcoord[BOXBOTTOM]))
+	{
+		return true;
+	}
+
+	// we did not find any reason to pass the check, so return failure
+	return false;
+}
+
 
 //
 // HWR_AddPolyObjectSegs
@@ -369,6 +442,9 @@ static void HWR_Subsector(size_t num)
 	extracolormap_t *floorcolormap;
 	extracolormap_t *ceilingcolormap;
 
+	//if (gl_printportals && gl_portalclipline)
+	//	CONS_Printf("subsector %d in portal\n", (INT32)num);
+
 #ifdef PARANOIA //no risk while developing, enough debugging nights!
 	if (num >= addsubsector)
 		I_Error("HWR_Subsector: ss %s with numss = %s, addss = %s\n",
@@ -449,7 +525,7 @@ static void HWR_Subsector(size_t num)
 
 	// render floor ?
 	// yeah, easy backface cull! :)
-	if (cullFloorHeight < dup_viewz)
+	if (cullFloorHeight < viewz)
 	{
 		if (gl_frontsector->floorpic != skyflatnum)
 		{
@@ -465,7 +541,7 @@ static void HWR_Subsector(size_t num)
 		}
 	}
 
-	if (cullCeilingHeight > dup_viewz)
+	if (cullCeilingHeight > viewz)
 	{
 		if (gl_frontsector->ceilingpic != skyflatnum)
 		{
@@ -483,7 +559,7 @@ static void HWR_Subsector(size_t num)
 
 	// Moved here because before, when above the ceiling and the floor does not have the sky flat, it doesn't draw the sky
 	if (gl_frontsector->ceilingpic == skyflatnum || gl_frontsector->floorpic == skyflatnum)
-		drawsky = true;
+		gl_sky_found = true;
 
 	if (gl_frontsector->ffloors)
 	{
@@ -505,14 +581,14 @@ static void HWR_Subsector(size_t num)
 
 			if (centerHeight <= locCeilingHeight &&
 			    centerHeight >= locFloorHeight &&
-			    ((dup_viewz < cullHeight && (rover->flags & FF_BOTHPLANES || !(rover->flags & FF_INVERTPLANES))) ||
-			     (dup_viewz > cullHeight && (rover->flags & FF_BOTHPLANES || rover->flags & FF_INVERTPLANES))))
+			    ((viewz < cullHeight && (rover->flags & FF_BOTHPLANES || !(rover->flags & FF_INVERTPLANES))) ||
+			     (viewz > cullHeight && (rover->flags & FF_BOTHPLANES || rover->flags & FF_INVERTPLANES))))
 			{
 				if (rover->flags & FF_FOG)
 				{
 					UINT8 alpha;
 
-					light = R_GetPlaneLight(gl_frontsector, centerHeight, dup_viewz < cullHeight ? true : false);
+					light = R_GetPlaneLight(gl_frontsector, centerHeight, viewz < cullHeight ? true : false);
 					alpha = HWR_FogBlockAlpha(*gl_frontsector->lightlist[light].lightlevel, rover->master->frontsector->extra_colormap);
 
 					HWR_AddTransparentFloor(0,
@@ -525,7 +601,7 @@ static void HWR_Subsector(size_t num)
 				}
 				else if ((rover->flags & FF_TRANSLUCENT && rover->alpha < 256) || rover->blend) // SoM: Flags are more efficient
 				{
-					light = R_GetPlaneLight(gl_frontsector, centerHeight, dup_viewz < cullHeight ? true : false);
+					light = R_GetPlaneLight(gl_frontsector, centerHeight, viewz < cullHeight ? true : false);
 
 					HWR_AddTransparentFloor(&levelflats[*rover->bottompic],
 					                       &extrasubsectors[num],
@@ -539,7 +615,7 @@ static void HWR_Subsector(size_t num)
 				else
 				{
 					HWR_GetLevelFlat(&levelflats[*rover->bottompic]);
-					light = R_GetPlaneLight(gl_frontsector, centerHeight, dup_viewz < cullHeight ? true : false);
+					light = R_GetPlaneLight(gl_frontsector, centerHeight, viewz < cullHeight ? true : false);
 					HWR_RenderPlane(sub, &extrasubsectors[num], false, *rover->bottomheight, HWR_RippleBlend(gl_frontsector, rover, false)|PF_Occlude, *gl_frontsector->lightlist[light].lightlevel, &levelflats[*rover->bottompic],
 					                rover->master->frontsector, 255, *gl_frontsector->lightlist[light].extra_colormap);
 				}
@@ -551,14 +627,14 @@ static void HWR_Subsector(size_t num)
 
 			if (centerHeight >= locFloorHeight &&
 			    centerHeight <= locCeilingHeight &&
-			    ((dup_viewz > cullHeight && (rover->flags & FF_BOTHPLANES || !(rover->flags & FF_INVERTPLANES))) ||
-			     (dup_viewz < cullHeight && (rover->flags & FF_BOTHPLANES || rover->flags & FF_INVERTPLANES))))
+			    ((viewz > cullHeight && (rover->flags & FF_BOTHPLANES || !(rover->flags & FF_INVERTPLANES))) ||
+			     (viewz < cullHeight && (rover->flags & FF_BOTHPLANES || rover->flags & FF_INVERTPLANES))))
 			{
 				if (rover->flags & FF_FOG)
 				{
 					UINT8 alpha;
 
-					light = R_GetPlaneLight(gl_frontsector, centerHeight, dup_viewz < cullHeight ? true : false);
+					light = R_GetPlaneLight(gl_frontsector, centerHeight, viewz < cullHeight ? true : false);
 					alpha = HWR_FogBlockAlpha(*gl_frontsector->lightlist[light].lightlevel, rover->master->frontsector->extra_colormap);
 
 					HWR_AddTransparentFloor(0,
@@ -571,7 +647,7 @@ static void HWR_Subsector(size_t num)
 				}
 				else if ((rover->flags & FF_TRANSLUCENT && rover->alpha < 256) || rover->blend)
 				{
-					light = R_GetPlaneLight(gl_frontsector, centerHeight, dup_viewz < cullHeight ? true : false);
+					light = R_GetPlaneLight(gl_frontsector, centerHeight, viewz < cullHeight ? true : false);
 
 					HWR_AddTransparentFloor(&levelflats[*rover->toppic],
 					                        &extrasubsectors[num],
@@ -585,7 +661,7 @@ static void HWR_Subsector(size_t num)
 				else
 				{
 					HWR_GetLevelFlat(&levelflats[*rover->toppic]);
-					light = R_GetPlaneLight(gl_frontsector, centerHeight, dup_viewz < cullHeight ? true : false);
+					light = R_GetPlaneLight(gl_frontsector, centerHeight, viewz < cullHeight ? true : false);
 					HWR_RenderPlane(sub, &extrasubsectors[num], true, *rover->topheight, HWR_RippleBlend(gl_frontsector, rover, false)|PF_Occlude, *gl_frontsector->lightlist[light].lightlevel, &levelflats[*rover->toppic],
 					                  rover->master->frontsector, 255, *gl_frontsector->lightlist[light].extra_colormap);
 				}
@@ -674,7 +750,7 @@ void HWR_RenderBSPNode(INT32 bspnum)
 		node_t *bsp = &nodes[bspnum];
 
 		// Decide which side the view point is on
-		INT32 side = R_PointOnSide(dup_viewx, dup_viewy, bsp);
+		INT32 side = R_PointOnSide(viewx, viewy, bsp);
 
 		// Recursively divide front space (toward the viewer)
 		HWR_RenderBSPNode(bsp->children[side]);
@@ -707,6 +783,15 @@ void HWR_RenderBSPNode(INT32 bspnum)
 		}
 		else
 		{
+			if (gl_portalcullsector)
+			{
+				// skip all subsectors encountered before the portal
+				// destination's front sector
+				if (gl_portalcullsector != subsectors[bspnum & ~NF_SUBSECTOR].sector)
+					return;
+				else
+					gl_portalcullsector = NULL;
+			}
 			//*(gl_drawsubsector_p++) = bspnum&(~NF_SUBSECTOR);
 			HWR_Subsector(bspnum&(~NF_SUBSECTOR));
 		}
@@ -714,16 +799,17 @@ void HWR_RenderBSPNode(INT32 bspnum)
 	}
 
 	// Decide which side the view point is on.
-	side = R_PointOnSide(dup_viewx, dup_viewy, bsp);
+	side = R_PointOnSide(viewx, viewy, bsp);
 
 	// BP: big hack for a test in lighning ref : 1249753487AB
 	hwbbox = bsp->bbox[side];
 
-	// Recursively divide front space.
-	HWR_RenderBSPNode(bsp->children[side]);
+	// Recursively divide front space. Possibly not when rendering a portal.
+	if (HWR_PortalCheckBBox(bsp->bbox[side]))
+		HWR_RenderBSPNode(bsp->children[side]);
 
 	// Possibly divide back space.
-	if (HWR_CheckBBox(bsp->bbox[side^1]))
+	if (HWR_CheckBBox(bsp->bbox[side^1]) && HWR_PortalCheckBBox(bsp->bbox[side^1]))
 	{
 		// BP: big hack for a test in lighning ref : 1249753487AB
 		hwbbox = bsp->bbox[side^1];

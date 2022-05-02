@@ -79,6 +79,13 @@ static void HWR_ProjectWall(FOutVector *wallVerts, FSurfaceInfo *pSurf, FBITFIEL
 		blendmode |= PF_ColorMapped;
 	}
 
+	// don't draw to color buffer when drawing to stencil
+	if (gl_drawing_stencil)
+	{
+		blendmode |= PF_Invisible|PF_NoAlphaTest; // TODO not sure if any others than PF_Invisible are needed??
+		blendmode &= ~PF_Masked;
+	}
+
 	HWR_ProcessPolygon(pSurf, wallVerts, 4, blendmode|PF_Modulated|PF_Occlude, shader, false);
 }
 
@@ -262,6 +269,17 @@ static void HWR_SplitWall(sector_t *sector, FOutVector *wallVerts, INT32 texnum,
 // Draw walls into the depth buffer so that anything behind is culled properly
 static void HWR_DrawSkyWall(FOutVector *wallVerts, FSurfaceInfo *Surf)
 {
+	if (cv_glskydebug.value)
+	{
+		wallVerts[3].t = wallVerts[2].t = 4;
+		wallVerts[0].t = wallVerts[1].t = 0;
+		wallVerts[0].s = wallVerts[3].s = 0.1;
+		wallVerts[2].s = wallVerts[1].s = 0;
+		HWR_GetTexture(cv_glskydebug.value);
+		HWR_ProjectWall(wallVerts, Surf, 0, 255, NULL);
+		return;
+	}
+
 	HWR_SetCurrentTexture(NULL);
 	// no texture
 	wallVerts[3].t = wallVerts[2].t = 0;
@@ -345,9 +363,9 @@ static void HWR_ProcessTwoSidedSegTop(FOutVector *wallVerts, gl_seg_bounds *b,
 	wallVerts[2].y = FIXED_TO_FLOAT(b->worldtopslope);
 	wallVerts[1].y = FIXED_TO_FLOAT(b->worldhighslope);
 
-	if (gl_frontsector->numlights)
+	if (!gl_drawing_stencil && gl_frontsector->numlights)
 		HWR_SplitWall(gl_frontsector, wallVerts, gl_toptexture, &Surf, FF_CUTLEVEL, NULL, 0);
-	else if (grTex->mipmap.flags & TF_TRANSPARENT)
+	else if (!gl_drawing_stencil && (grTex->mipmap.flags & TF_TRANSPARENT))
 		HWR_AddTransparentWall(wallVerts, &Surf, gl_toptexture, PF_Environment, false, lightnum, gl_frontsector->extra_colormap);
 	else
 		HWR_ProjectWall(wallVerts, &Surf, PF_Masked, lightnum, gl_frontsector->extra_colormap);
@@ -411,14 +429,16 @@ static void HWR_ProcessTwoSidedSegBottom(FOutVector *wallVerts, gl_seg_bounds *b
 	wallVerts[2].y = FIXED_TO_FLOAT(b->worldlowslope);
 	wallVerts[1].y = FIXED_TO_FLOAT(b->worldbottomslope);
 
-	if (gl_frontsector->numlights)
+	if (!gl_drawing_stencil && gl_frontsector->numlights)
 		HWR_SplitWall(gl_frontsector, wallVerts, gl_bottomtexture, &Surf, FF_CUTLEVEL, NULL, 0);
-	else if (grTex->mipmap.flags & TF_TRANSPARENT)
+	else if (!gl_drawing_stencil && (grTex->mipmap.flags & TF_TRANSPARENT))
 		HWR_AddTransparentWall(wallVerts, &Surf, gl_bottomtexture, PF_Environment, false, lightnum, gl_frontsector->extra_colormap);
 	else
 		HWR_ProjectWall(wallVerts, &Surf, PF_Masked, lightnum, gl_frontsector->extra_colormap);
 }
 
+// gl_midtexture can be inactive for this function
+// when rendering twosided portal midtextures
 static void HWR_ProcessTwoSidedSegMiddle(FOutVector *wallVerts, gl_seg_bounds *b,
 		float cliplow, float cliphigh, FUINT lightnum, INT32 gl_midtexture)
 {
@@ -444,28 +464,31 @@ static void HWR_ProcessTwoSidedSegMiddle(FOutVector *wallVerts, gl_seg_bounds *b
 	else
 		back = gl_linedef->backsector;
 
-	if (gl_sidedef->repeatcnt)
-		repeats = 1 + gl_sidedef->repeatcnt;
-	else if (gl_linedef->flags & ML_EFFECT5)
+	if (gl_midtexture)
 	{
-		fixed_t high, low;
+		if (gl_sidedef->repeatcnt)
+			repeats = 1 + gl_sidedef->repeatcnt;
+		else if (gl_linedef->flags & ML_EFFECT5)
+		{
+			fixed_t high, low;
 
-		if (front->ceilingheight > back->ceilingheight)
-			high = back->ceilingheight;
+			if (front->ceilingheight > back->ceilingheight)
+				high = back->ceilingheight;
+			else
+				high = front->ceilingheight;
+
+			if (front->floorheight > back->floorheight)
+				low = front->floorheight;
+			else
+				low = back->floorheight;
+
+			repeats = (high - low)/textureheight[gl_sidedef->midtexture];
+			if ((high-low)%textureheight[gl_sidedef->midtexture])
+				repeats++; // tile an extra time to fill the gap -- Monster Iestyn
+		}
 		else
-			high = front->ceilingheight;
-
-		if (front->floorheight > back->floorheight)
-			low = front->floorheight;
-		else
-			low = back->floorheight;
-
-		repeats = (high - low)/textureheight[gl_sidedef->midtexture];
-		if ((high-low)%textureheight[gl_sidedef->midtexture])
-			repeats++; // tile an extra time to fill the gap -- Monster Iestyn
+			repeats = 1;
 	}
-	else
-		repeats = 1;
 
 	// SoM: a little note: This code re-arranging will
 	// fix the bug in Nimrod map02. popentop and popenbottom
@@ -488,28 +511,37 @@ static void HWR_ProcessTwoSidedSegMiddle(FOutVector *wallVerts, gl_seg_bounds *b
 		popenbottom = max(b->worldbottom, b->worldlow);
 	}
 
-	if (gl_linedef->flags & ML_EFFECT2)
+	if (gl_midtexture)
 	{
-		if (!!(gl_linedef->flags & ML_DONTPEGBOTTOM) ^ !!(gl_linedef->flags & ML_EFFECT3))
+		if (gl_linedef->flags & ML_EFFECT2)
 		{
-			polybottom = max(front->floorheight, back->floorheight) + gl_sidedef->rowoffset;
+			if (!!(gl_linedef->flags & ML_DONTPEGBOTTOM) ^ !!(gl_linedef->flags & ML_EFFECT3))
+			{
+				polybottom = max(front->floorheight, back->floorheight) + gl_sidedef->rowoffset;
+				polytop = polybottom + textureheight[gl_midtexture]*repeats;
+			}
+			else
+			{
+				polytop = min(front->ceilingheight, back->ceilingheight) + gl_sidedef->rowoffset;
+				polybottom = polytop - textureheight[gl_midtexture]*repeats;
+			}
+		}
+		else if (!!(gl_linedef->flags & ML_DONTPEGBOTTOM) ^ !!(gl_linedef->flags & ML_EFFECT3))
+		{
+			polybottom = popenbottom + gl_sidedef->rowoffset;
 			polytop = polybottom + textureheight[gl_midtexture]*repeats;
 		}
 		else
 		{
-			polytop = min(front->ceilingheight, back->ceilingheight) + gl_sidedef->rowoffset;
+			polytop = popentop + gl_sidedef->rowoffset;
 			polybottom = polytop - textureheight[gl_midtexture]*repeats;
 		}
 	}
-	else if (!!(gl_linedef->flags & ML_DONTPEGBOTTOM) ^ !!(gl_linedef->flags & ML_EFFECT3))
-	{
-		polybottom = popenbottom + gl_sidedef->rowoffset;
-		polytop = polybottom + textureheight[gl_midtexture]*repeats;
-	}
 	else
 	{
-		polytop = popentop + gl_sidedef->rowoffset;
-		polybottom = polytop - textureheight[gl_midtexture]*repeats;
+		// portal stencil twosided midtexture, fills entire space
+		polytop = popentop;
+		polybottom = popenbottom;
 	}
 	// CB
 	// NOTE: With polyobjects, whenever you need to check the properties of the polyobject sector it belongs to,
@@ -529,6 +561,8 @@ static void HWR_ProcessTwoSidedSegMiddle(FOutVector *wallVerts, gl_seg_bounds *b
 	h = min(highcut, polytop);
 	l = max(polybottom, lowcut);
 
+	// gl_midtexture can be inactive when rendering twosided portal midtextures
+	if (gl_midtexture)
 	{
 		// PEGGING
 		if (!!(gl_linedef->flags & ML_DONTPEGBOTTOM) ^ !!(gl_linedef->flags & ML_EFFECT3))
@@ -579,6 +613,7 @@ static void HWR_ProcessTwoSidedSegMiddle(FOutVector *wallVerts, gl_seg_bounds *b
 		h = min(highcut, polytop);
 		l = max(polybottom, lowcut);
 
+		if (grTex)
 		{
 			// PEGGING
 			if (!!(gl_linedef->flags & ML_DONTPEGBOTTOM) ^ !!(gl_linedef->flags & ML_EFFECT3))
@@ -649,14 +684,17 @@ static void HWR_ProcessTwoSidedSegMiddle(FOutVector *wallVerts, gl_seg_bounds *b
 	// This will cause the midtexture appear on top, if a FOF overlaps with it.
 	blendmode |= PF_Decal;
 
-	if (gl_frontsector->numlights)
+	if (!grTex)
+		blendmode |= PF_NoTexture;
+
+	if (!gl_drawing_stencil && gl_frontsector->numlights)
 	{
 		if (!(blendmode & PF_Masked))
 			HWR_SplitWall(gl_frontsector, wallVerts, gl_midtexture, &Surf, FF_TRANSLUCENT, NULL, blendmode);
 		else
 			HWR_SplitWall(gl_frontsector, wallVerts, gl_midtexture, &Surf, FF_CUTLEVEL, NULL, blendmode);
 	}
-	else if (!(blendmode & PF_Masked))
+	else if (!gl_drawing_stencil && !(blendmode & PF_Masked))
 		HWR_AddTransparentWall(wallVerts, &Surf, gl_midtexture, blendmode, false, lightnum, gl_frontsector->extra_colormap);
 	else
 		HWR_ProjectWall(wallVerts, &Surf, blendmode, lightnum, gl_frontsector->extra_colormap);
@@ -696,21 +734,23 @@ static void HWR_ProcessTwoSidedSeg(FOutVector *wallVerts, gl_seg_bounds *b,
 		gl_bottomtexture = R_GetTextureNum(gl_sidedef->bottomtexture);
 
 	// check TOP TEXTURE
-	if ((b->worldhighslope < b->worldtopslope || b->worldhigh < b->worldtop) && gl_toptexture)
+	if ((b->worldhighslope < b->worldtopslope || b->worldhigh < b->worldtop)
+			&& gl_toptexture)
 	{
 		HWR_ProcessTwoSidedSegTop(wallVerts, b, cliplow, cliphigh, lightnum, gl_toptexture);
 	}
 
 	// check BOTTOM TEXTURE
-	if ((
-		b->worldlowslope > b->worldbottomslope ||
-		b->worldlow > b->worldbottom) && gl_bottomtexture) //only if VISIBLE!!!
+	if ((b->worldlowslope > b->worldbottomslope || b->worldlow > b->worldbottom)
+			&& gl_bottomtexture)
 	{
 		HWR_ProcessTwoSidedSegBottom(wallVerts, b, cliplow, cliphigh, lightnum, gl_bottomtexture);
 	}
 
 	gl_midtexture = R_GetTextureNum(gl_sidedef->midtexture);
-	if (gl_midtexture)
+	// twosided midtexture goes to stencil even if there's no midtexture
+	// (software also renders twosided midtexture portals like this)
+	if (gl_midtexture || gl_drawing_stencil)
 	{
 		HWR_ProcessTwoSidedSegMiddle(wallVerts, b, cliplow, cliphigh, lightnum, gl_midtexture);
 	}
@@ -793,11 +833,11 @@ static void HWR_ProcessSingleSidedSeg(FOutVector *wallVerts, gl_seg_bounds *b,
 		wallVerts[1].y = FIXED_TO_FLOAT(b->worldbottomslope);
 
 		// I don't think that solid walls can use translucent linedef types...
-		if (gl_frontsector->numlights)
+		if (!gl_drawing_stencil && gl_frontsector->numlights)
 			HWR_SplitWall(gl_frontsector, wallVerts, gl_midtexture, &Surf, FF_CUTLEVEL, NULL, 0);
 		else
 		{
-			if (grTex->mipmap.flags & TF_TRANSPARENT)
+			if (!gl_drawing_stencil && (grTex->mipmap.flags & TF_TRANSPARENT))
 				HWR_AddTransparentWall(wallVerts, &Surf, gl_midtexture, PF_Environment, false, lightnum, gl_frontsector->extra_colormap);
 			else
 				HWR_ProjectWall(wallVerts, &Surf, PF_Masked, lightnum, gl_frontsector->extra_colormap);
@@ -1046,7 +1086,7 @@ static void HWR_ProcessSegFOFs(FOutVector *wallVerts, gl_seg_bounds *b,
 
 void HWR_ProcessSeg(void) // Sort of like GLWall::Process in GZDoom
 {
-	FOutVector wallVerts[4];
+	FOutVector wallVerts[4] = {0};
 	v2d_t vs, ve; // start, end vertices of 2d line (view from above)
 
 	gl_seg_bounds b = {0};
@@ -1109,7 +1149,8 @@ void HWR_ProcessSeg(void) // Sort of like GLWall::Process in GZDoom
 		HWR_ProcessSingleSidedSeg(wallVerts, &b, cliplow, cliphigh, lightnum);
 	}
 
-	if (gl_frontsector && gl_backsector &&
+	// no fofs to stencil
+	if (!gl_drawing_stencil && gl_frontsector && gl_backsector &&
 			!Tag_Compare(&gl_frontsector->tags, &gl_backsector->tags) &&
 			(gl_backsector->ffloors || gl_frontsector->ffloors))
 	{

@@ -24,16 +24,52 @@ static void HWR_ProjectPrecipitationSprite(precipmobj_t *thing);
 // sprites are drawn after all wall and planes are rendered, so that
 // sprite translucency effects apply on the rendered view (instead of the background sky!!)
 
-UINT32 gl_visspritecount;
-static gl_vissprite_t *gl_visspritechunks[MAXVISSPRITES >> VISSPRITECHUNKBITS] = {NULL};
+typedef struct
+{
+	FOutVector verts[4];
+	gl_vissprite_t *spr;
+} zbuffersprite_t;
+
+typedef struct
+{
+	UINT32 gl_visspritecount;
+	gl_vissprite_t *gl_visspritechunks[MAXVISSPRITES >> VISSPRITECHUNKBITS];
+	zbuffersprite_t linkdrawlist[MAXVISSPRITES];
+	UINT32 linkdrawcount;
+} gl_sprite_state_t;
+
+// TODO this array is ~3 megabytes because of linkdrawlist...
+// maybe turn that into a dynamic array
+static gl_sprite_state_t state_stack[MAXPORTALS_CAP+1] = {0};
+static int stack_level = 0;
+static gl_sprite_state_t *cst = &state_stack[0]; // current state
 
 // --------------------------------------------------------------------------
 // HWR_ClearSprites
-// Called at frame start.
+// Called at viewpoint start.
 // --------------------------------------------------------------------------
 void HWR_ClearSprites(void)
 {
-	gl_visspritecount = 0;
+	cst->gl_visspritecount = 0;
+}
+
+// pushes all sprite rendering state to stack
+void HWR_PushSpriteState(void)
+{
+	if (stack_level == MAXPORTALS_CAP)
+		I_Error("HWR_PushSpriteState: State stack overflow");
+
+	stack_level++;
+	cst++;
+}
+
+void HWR_PopSpriteState(void)
+{
+	if (stack_level == 0)
+		I_Error("HWR_PopSpriteState: State stack underflow");
+
+	stack_level--;
+	cst--;
 }
 
 // --------------------------------------------------------------------------
@@ -46,18 +82,18 @@ static gl_vissprite_t *HWR_GetVisSprite(UINT32 num)
 		UINT32 chunk = num >> VISSPRITECHUNKBITS;
 
 		// Allocate chunk if necessary
-		if (!gl_visspritechunks[chunk])
-			Z_Malloc(sizeof(gl_vissprite_t) * VISSPRITESPERCHUNK, PU_LEVEL, &gl_visspritechunks[chunk]);
+		if (!cst->gl_visspritechunks[chunk])
+			Z_Malloc(sizeof(gl_vissprite_t) * VISSPRITESPERCHUNK, PU_LEVEL, &cst->gl_visspritechunks[chunk]);
 
-		return gl_visspritechunks[chunk] + (num & VISSPRITEINDEXMASK);
+		return cst->gl_visspritechunks[chunk] + (num & VISSPRITEINDEXMASK);
 }
 
 static gl_vissprite_t *HWR_NewVisSprite(void)
 {
-	if (gl_visspritecount == MAXVISSPRITES)
+	if (cst->gl_visspritecount == MAXVISSPRITES)
 		return &gl_overflowsprite;
 
-	return HWR_GetVisSprite(gl_visspritecount++);
+	return HWR_GetVisSprite(cst->gl_visspritecount++);
 }
 
 // A hack solution for transparent surfaces appearing on top of linkdraw sprites.
@@ -66,24 +102,14 @@ static gl_vissprite_t *HWR_NewVisSprite(void)
 // NOTE: This will no longer be necessary once full translucent sorting is implemented, where
 // translucent sprites and surfaces are sorted together.
 
-typedef struct
-{
-	FOutVector verts[4];
-	gl_vissprite_t *spr;
-} zbuffersprite_t;
-
-// this list is used to store data about linkdraw sprites
-zbuffersprite_t linkdrawlist[MAXVISSPRITES];
-UINT32 linkdrawcount = 0;
-
 // add the necessary data to the list for delayed z-buffer drawing
 static void HWR_LinkDrawHackAdd(FOutVector *verts, gl_vissprite_t *spr)
 {
-	if (linkdrawcount < MAXVISSPRITES)
+	if (cst->linkdrawcount < MAXVISSPRITES)
 	{
-		memcpy(linkdrawlist[linkdrawcount].verts, verts, sizeof(FOutVector) * 4);
-		linkdrawlist[linkdrawcount].spr = spr;
-		linkdrawcount++;
+		memcpy(cst->linkdrawlist[cst->linkdrawcount].verts, verts, sizeof(FOutVector) * 4);
+		cst->linkdrawlist[cst->linkdrawcount].spr = spr;
+		cst->linkdrawcount++;
 	}
 }
 
@@ -98,14 +124,14 @@ static void HWR_LinkDrawHackFinish(void)
 	surf.LightInfo.light_level = 0;
 	surf.LightInfo.fade_start = 0;
 	surf.LightInfo.fade_end = 31;
-	for (i = 0; i < linkdrawcount; i++)
+	for (i = 0; i < cst->linkdrawcount; i++)
 	{
 		// draw sprite shape, only to z-buffer
-		HWR_GetPatch(linkdrawlist[i].spr->gpatch);
-		HWR_ProcessPolygon(&surf, linkdrawlist[i].verts, 4, PF_Translucent|PF_Occlude|PF_Invisible, 0, false);
+		HWR_GetPatch(cst->linkdrawlist[i].spr->gpatch);
+		HWR_ProcessPolygon(&surf, cst->linkdrawlist[i].verts, 4, PF_Translucent|PF_Occlude|PF_Invisible, 0, false);
 	}
 	// reset list
-	linkdrawcount = 0;
+	cst->linkdrawcount = 0;
 }
 
 //
@@ -1076,14 +1102,15 @@ static int CompareVisSprites(const void *p1, const void *p2)
 		return -1;
 }
 
-void HWR_SortVisSprites(void)
+UINT32 HWR_SortVisSprites(void)
 {
 	UINT32 i;
-	for (i = 0; i < gl_visspritecount; i++)
+	for (i = 0; i < cst->gl_visspritecount; i++)
 	{
 		gl_vsprorder[i] = HWR_GetVisSprite(i);
 	}
-	qsort(gl_vsprorder, gl_visspritecount, sizeof(gl_vissprite_t*), CompareVisSprites);
+	qsort(gl_vsprorder, cst->gl_visspritecount, sizeof(gl_vissprite_t*), CompareVisSprites);
+	return cst->gl_visspritecount;
 }
 
 // --------------------------------------------------------------------------
@@ -1096,7 +1123,7 @@ void HWR_DrawSprites(void)
 	UINT32 i;
 	boolean skipshadow = false; // skip shadow if it was drawn already for a linkdraw sprite encountered earlier in the list
 	HWD.pfnSetSpecialState(HWD_SET_MODEL_LIGHTING, cv_glmodellighting.value);
-	for (i = 0; i < gl_visspritecount; i++)
+	for (i = 0; i < cst->gl_visspritecount; i++)
 	{
 		gl_vissprite_t *spr = gl_vsprorder[i];
 		if (spr->precip)

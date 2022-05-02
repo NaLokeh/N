@@ -1696,6 +1696,9 @@ static SDL_bool Impl_CreateWindow(SDL_bool fullscreen)
 
 	flags |= SDL_WINDOW_RESIZABLE;
 
+	// Stencil buffer for visual portals
+	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 4);
+
 	// Create a window
 	window = SDL_CreateWindow("SRB2 "VERSIONSTRING, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 			realwidth, realheight, flags);
@@ -1937,6 +1940,7 @@ void VID_StartupOpenGL(void)
 		HWD.pfnGClipRect        = hwSym("GClipRect",NULL);
 		HWD.pfnClearMipMapCache = hwSym("ClearMipMapCache",NULL);
 		HWD.pfnSetSpecialState  = hwSym("SetSpecialState",NULL);
+		HWD.pfnSetStencilMode   = hwSym("SetStencilMode",NULL);
 		HWD.pfnSetTexturePalette= hwSym("SetTexturePalette",NULL);
 		HWD.pfnGetTextureUsed   = hwSym("GetTextureUsed",NULL);
 		HWD.pfnDrawModel        = hwSym("DrawModel",NULL);
